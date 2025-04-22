@@ -1,0 +1,164 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  password      String
+  name          String?
+  role          String    @default("user")
+  isVerified    Boolean   @default(false)
+  verifyToken   String?   @unique
+  resetToken    String?   @unique
+  lastLogin     DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  tokens        Token[]
+  userTokens    UserToken?
+  referralLinks ReferralLink[]
+  referredBy    String?
+  forumPosts    ForumPost[]
+  forumComments ForumComment[]
+
+  @@index([email])
+  @@index([referredBy])
+  @@index([verifyToken])
+  @@index([resetToken])
+}
+
+model Token {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([token])
+}
+
+model UserToken {
+  id              String   @id @default(uuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id])
+  tokensRemaining Int      @default(3)
+  lastRefill      DateTime @default(now())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model ReferralLink {
+  id        String   @id @default(uuid())
+  code      String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  usedCount Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([code])
+}
+
+model ForumPost {
+  id        String   @id @default(uuid())
+  title     String
+  content   String
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  comments  ForumComment[]
+
+  @@index([userId])
+}
+
+model ForumComment {
+  id        String   @id @default(uuid())
+  content   String
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  postId    String
+  post      ForumPost @relation(fields: [postId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([postId])
+}
+
+model Ebook {
+  id          String   @id @default(cuid())
+  title       String
+  description String
+  price       Float
+  fileUrl     String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  purchases   EbookPurchase[]
+  downloads   EbookDownload[]
+  analytics   EbookAnalytics[]
+}
+
+model EbookPurchase {
+  id           String   @id @default(cuid())
+  ebookId      String
+  userId       String
+  purchasedAt  DateTime @default(now())
+  tokenUsed    Int
+  paymentStatus String
+
+  ebook       Ebook    @relation(fields: [ebookId], references: [id])
+}
+
+model EbookDownload {
+  id          String   @id @default(cuid())
+  ebookId     String
+  userId      String
+  downloadedAt DateTime @default(now())
+
+  ebook       Ebook    @relation(fields: [ebookId], references: [id])
+}
+
+model EbookAnalytics {
+  id          String   @id @default(cuid())
+  ebookId     String
+  userId      String
+  action      String
+  metadata    Json
+  createdAt   DateTime @default(now())
+
+  ebook       Ebook    @relation(fields: [ebookId], references: [id])
+}
+
+model Consultation {
+  id          String   @id @default(uuid())
+  clientName  String
+  email       String
+  message     String
+  status      String   @default("pending")
+  createdAt   DateTime @default(now())
+}
+
+model Payment {
+  id          String   @id @default(uuid())
+  amount      Float
+  status      String
+  paymentId   String?  // For PayPal reference
+  createdAt   DateTime @default(now())
+}
