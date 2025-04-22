@@ -60,12 +60,12 @@ async function handleRequest(request) {
     }
       
     // Favicon de respaldo en formato SVG
-    const svgIcon = \<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+    const svgIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
       <rect width="100" height="100" rx="20" fill="#2563eb"/>
       <path d="M30 30 L70 30 L70 70 L30 70 Z" fill="none" stroke="white" stroke-width="5"/>
       <path d="M40 45 L60 45" stroke="white" stroke-width="5" stroke-linecap="round"/>
       <path d="M40 55 L55 55" stroke="white" stroke-width="5" stroke-linecap="round"/>
-    </svg>\;
+    </svg>`;
     
     return new Response(svgIcon, {
       status: 200,
@@ -99,7 +99,7 @@ async function handleRequest(request) {
     
     // Para rutas SPA o recursos no encontrados, servir index.html
     try {
-      const response = await fetch(\\/index.html\);
+      const response = await fetch(`${url.origin}/index.html`);
       
       if (response.ok) {
         const newResponse = new Response(response.body, response);
@@ -113,7 +113,7 @@ async function handleRequest(request) {
     }
     
     // Fallback HTML si todo lo anterior falla
-    return new Response(\
+    return new Response(`
       <!DOCTYPE html>
       <html lang="es">
       <head>
@@ -133,7 +133,7 @@ async function handleRequest(request) {
         <button onclick="window.location.reload()">Refrescar página</button>
       </body>
       </html>
-    \, {
+    `, {
       status: 200,
       headers: {
         'Content-Type': 'text/html',
