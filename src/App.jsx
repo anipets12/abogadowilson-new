@@ -3,6 +3,10 @@ import { BrowserRouter as Router, Routes, Route, Navigate, Link, useLocation } f
 import { Toaster, toast } from 'react-hot-toast';
 import axios from 'axios';
 
+// Contextos
+import { useAuth } from './context/AuthContext';
+
+// Componentes principales
 import Navbar from './components/Navigation/Navbar';
 import Hero from './components/Hero';
 import Services from './components/Services';
@@ -27,7 +31,9 @@ import Newsletter from './components/Newsletter/Newsletter';
 import ConsultationHub from './components/Consultation/ConsultationHub';
 import Ebooks from './components/Ebooks';
 import PaymentForm from './components/Payment/PaymentForm';
+import CheckoutForm from './components/Payment/CheckoutForm';
 import ThankYouPage from './components/Payment/ThankYouPage';
+import ProtectedDownload from './components/ProtectedDownload';
 import ConsultasPenales from './components/ConsultasPenales';
 import ConsultasTransito from './components/ConsultasTransito';
 import ConsultasCiviles from './components/ConsultasCiviles';
@@ -49,11 +55,8 @@ import Aduanas from './components/Services/Aduanas';
 import WhatsAppChat from './components/Chat/WhatsAppChat';
 import LiveChat from './components/Chat/LiveChat';
 
-// Nuevo componente de pago
-import CheckoutForm from './components/Payment/CheckoutForm';
-
 // Importamos el contexto de autenticación
-import { AuthProvider, useAuth } from './context/AuthContext';
+import { AuthProvider } from './context/AuthContext';
 
 // Determinar la URL base según el entorno (similar a apiService.js)
 const getBaseUrl = () => {
