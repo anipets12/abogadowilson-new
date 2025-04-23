@@ -16,32 +16,19 @@
 
 // Variables globales
 const ENV = {
-  SUPABASE_URL: typeof SUPABASE_URL !== 'undefined' ? SUPABASE_URL : '',
-  SUPABASE_KEY: typeof SUPABASE_KEY !== 'undefined' ? SUPABASE_KEY : '',
-  ENVIRONMENT: typeof ENVIRONMENT !== 'undefined' ? ENVIRONMENT : 'production',
-  API_ENABLED: typeof API_ENABLED !== 'undefined' ? API_ENABLED === 'true' : true,
-  CORS_ORIGIN: typeof CORS_ORIGIN !== 'undefined' ? CORS_ORIGIN : '*',
-  WHATSAPP_NUMBER: typeof WHATSAPP_NUMBER !== 'undefined' ? WHATSAPP_NUMBER : '+59398835269',
-  N8N_WEBHOOK_URL: typeof N8N_WEBHOOK_URL !== 'undefined' ? N8N_WEBHOOK_URL : 'https://n8nom.onrender.com/webhook/1cfd2baa-f5ec-4bc4-a99d-dfb36793eabd',
-  CONTACT_EMAIL: typeof CONTACT_EMAIL !== 'undefined' ? CONTACT_EMAIL : 'Wifirmalegal@gmail.com',
+  SUPABASE_URL: '',
+  SUPABASE_KEY: '',
+  ENVIRONMENT: 'production',
+  API_ENABLED: true,
+  CORS_ORIGIN: '*',
+  WHATSAPP_NUMBER: '+59398835269',
+  N8N_WEBHOOK_URL: 'https://n8nom.onrender.com/webhook/1cfd2baa-f5ec-4bc4-a99d-dfb36793eabd',
+  CONTACT_EMAIL: 'Wifirmalegal@gmail.com',
 };
 
 // Inicializar servicios
 let supabaseClient = null;
 let kvCache = {};
-
-// Event Listener principal
-addEventListener('fetch', event => {
-  try {
-    event.respondWith(handleRequest(event.request));
-  } catch (e) {
-    console.error('Error crítico en worker (nivel superior):', e);
-    event.respondWith(new Response(JSON.stringify({ error: 'Error interno del servidor' }), { 
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    }));
-  }
-});
 
 /**
  * Inicializa el cliente Supabase (carga lazy)
@@ -524,3 +511,25 @@ async function handleRequest(request) {
     });
   }
 }
+
+export default {
+  async fetch(request, env) {
+    // Cargar variables desde environment
+    Object.assign(ENV, {
+      SUPABASE_URL: env.SUPABASE_URL,
+      SUPABASE_KEY: env.SUPABASE_KEY,
+      ENVIRONMENT: env.ENVIRONMENT,
+      API_ENABLED: env.API_ENABLED === 'true',
+      CORS_ORIGIN: env.CORS_ORIGIN,
+      WHATSAPP_NUMBER: env.WHATSAPP_NUMBER,
+      N8N_WEBHOOK_URL: env.N8N_WEBHOOK_URL,
+      CONTACT_EMAIL: env.CONTACT_EMAIL
+    });
+    try {
+      return await handleRequest(request);
+    } catch (error) {
+      console.error('Error crítico en handler:', error);
+      return new Response('Error interno', { status: 500 });
+    }
+  }
+};
