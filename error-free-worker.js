@@ -471,7 +471,7 @@ async function handleRequest(request) {
     
     // Para rutas SPA o recursos no encontrados, servir index.html
     try {
-      const response = await fetch(\\/index.html\);
+      const response = await fetch('/index.html');
       
       if (response.ok) {
         const newResponse = new Response(response.body, response);
@@ -485,8 +485,8 @@ async function handleRequest(request) {
     }
     
     // Fallback HTML si todo lo anterior falla
-    return new Response(\
-      <!DOCTYPE html>
+    return new Response(
+      `<!DOCTYPE html>
       <html lang="es">
       <head>
         <meta charset="UTF-8">
@@ -505,7 +505,7 @@ async function handleRequest(request) {
         <button onclick="window.location.reload()">Refrescar página</button>
       </body>
       </html>
-    \, {
+    `, {
       status: 200,
       headers: {
         'Content-Type': 'text/html',
