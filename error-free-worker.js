@@ -416,7 +416,7 @@ async function handleRequest(request) {
   if (url.pathname === '/favicon.ico' || url.pathname === '/favicon.svg') {
     try {
       // Intentar servir el archivo desde los assets estáticos
-      const faviconResponse = await fetch(\\\\);
+      const faviconResponse = await fetch(request);
       
       if (faviconResponse.ok) {
         const newResponse = new Response(faviconResponse.body, faviconResponse);
