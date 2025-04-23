@@ -393,21 +393,22 @@ Mensaje: ${message}`,
  * @returns {Promise<Response>} - Respuesta HTTP
  */
 async function handleRequest(request, options = {}) {
-  const url = new URL(request.url);
-  const { kv, db, ctx } = options;
-  
-  // Headers estándar para todas las respuestas
-  const standardHeaders = {
-    'Access-Control-Allow-Origin': ENV.CORS_ORIGIN,
-    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    'Cache-Control': 'public, max-age=3600',
-    'X-Content-Type-Options': 'nosniff',
-    'X-Frame-Options': 'DENY',
-    'Referrer-Policy': 'strict-origin-when-cross-origin',
-    'Strict-Transport-Security': 'max-age=31536000; includeSubDomains; preload',
-    'Permissions-Policy': 'geolocation=(), microphone=(), camera=()',
-  };
+  try {
+    const url = new URL(request.url);
+    const { kv, db, ctx } = options;
+    
+    // Headers estándar para todas las respuestas
+    const standardHeaders = {
+      'Access-Control-Allow-Origin': ENV.CORS_ORIGIN,
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      'Cache-Control': 'public, max-age=3600',
+      'X-Content-Type-Options': 'nosniff',
+      'X-Frame-Options': 'DENY',
+      'Referrer-Policy': 'strict-origin-when-cross-origin',
+      'Strict-Transport-Security': 'max-age=31536000; includeSubDomains; preload',
+      'Permissions-Policy': 'geolocation=(), microphone=(), camera=()',
+    };
   
   // Manejar solicitudes CORS OPTIONS
   if (request.method === 'OPTIONS') {
@@ -423,44 +424,41 @@ async function handleRequest(request, options = {}) {
     return handleApiRequest(request, url, standardHeaders, { kv, db });
   }
   
-  // Manejo específico para favicon.ico y favicon.svg - SOLUCIÓN DEFINITIVA
-  if (url.pathname === '/favicon.ico' || url.pathname === '/favicon.svg') {
-    try {
-      // Intentar servir el archivo desde los assets estáticos
-      const faviconResponse = await fetch(request);
-      
-      if (faviconResponse.ok) {
-        const newResponse = new Response(faviconResponse.body, faviconResponse);
-        Object.entries(standardHeaders).forEach(([key, value]) => {
-          newResponse.headers.set(key, value);
+    // Manejo específico para favicon.ico y favicon.svg - SOLUCIÓN DEFINITIVA
+    if (url.pathname === '/favicon.ico' || url.pathname === '/favicon.svg') {
+      try {
+        // Intentar servir desde assets estáticos
+        const faviconRequest = new Request(new URL(url.pathname, request.url), request);
+        const faviconResponse = await fetch(faviconRequest);
+        
+        // Si favicon existe, servirlo directamente
+        if (faviconResponse.ok) {
+          return faviconResponse;
+        } else {
+          // Fallback: Generar un favicon vacío para evitar errores 404
+          const emptyFavicon = new Uint8Array([0,0,1,0,1,0,16,16,0,0,1,0,24,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]);
+          return new Response(emptyFavicon, {
+            headers: {
+              'Content-Type': 'image/x-icon',
+              'Cache-Control': 'public, max-age=31536000',
+              ...standardHeaders
+            }
+          });
+        }
+      } catch (e) {
+        console.error('Error al cargar favicon:', e);
+        // Servir favicon vacío en caso de error
+        const emptyFavicon = new Uint8Array([0,0,1,0,1,0,16,16,0,0,1,0,24,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]);
+        return new Response(emptyFavicon, {
+          headers: {
+            'Content-Type': 'image/x-icon',
+            'Cache-Control': 'public, max-age=31536000',
+            ...standardHeaders
+          }
         });
-        // Agregar cache extra para favicon
-        newResponse.headers.set('Cache-Control', 'public, max-age=86400');
-        return newResponse;
       }
-    } catch (e) {
-      console.error('Error al servir favicon desde assets:', e);
     }
-      
-    // Favicon de respaldo en formato SVG
-    const svgIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
-      <rect width="100" height="100" rx="20" fill="#2563eb"/>
-      <path d="M30 30 L70 30 L70 70 L30 70 Z" fill="none" stroke="white" stroke-width="5"/>
-      <path d="M40 45 L60 45" stroke="white" stroke-width="5" stroke-linecap="round"/>
-      <path d="M40 55 L55 55" stroke="white" stroke-width="5" stroke-linecap="round"/>
-    </svg>`;
-    
-    return new Response(svgIcon, {
-      status: 200,
-      headers: {
-        'Content-Type': 'image/svg+xml',
-        'Cache-Control': 'public, max-age=86400',
-        ...standardHeaders
-      }
-    });
-  }
   
-  try {
     // Para archivos estáticos (con extensión), intentar servir directamente
     if (url.pathname.includes('.')) {
       try {
@@ -529,7 +527,10 @@ async function handleRequest(request, options = {}) {
     // Respuesta de emergencia si hay un error crítico
     return new Response('Error interno del servidor', {
       status: 500,
-      headers: standardHeaders
+      headers: {
+        'Content-Type': 'text/plain',
+        ...standardHeaders
+      }
     });
   }
 }
