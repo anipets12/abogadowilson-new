@@ -424,34 +424,73 @@ async function handleRequest(request, options = {}) {
     return handleApiRequest(request, url, standardHeaders, { kv, db });
   }
   
-    // Manejo específico para favicon.ico y favicon.svg - SOLUCIÓN DEFINITIVA
+    // SOLUCIÓN DEFINITIVA para favicon.ico y favicon.svg
     if (url.pathname === '/favicon.ico' || url.pathname === '/favicon.svg') {
+      console.log('Solicitando favicon:', url.pathname);
+      
       try {
-        // Intentar servir desde assets estáticos
-        const faviconRequest = new Request(new URL(url.pathname, request.url), request);
-        const faviconResponse = await fetch(faviconRequest);
+        // Intentar obtener directamente de los assets estáticos usando la ruta absoluta
+        // Esto asegura que estamos accediendo a la ubicación correcta del favicon
+        const faviconPath = url.pathname === '/favicon.ico' ? '/favicon.ico' : '/favicon.svg';
+        const origin = new URL(request.url).origin;
+        const faviconUrl = `${origin}${faviconPath}`;
+        console.log('Intentando cargar favicon desde:', faviconUrl);
         
-        // Si favicon existe, servirlo directamente
+        const faviconResponse = await fetch(faviconUrl, {
+          cf: {
+            // Buscar en el cache primero
+            cacheTtl: 86400,
+            cacheEverything: true
+          }
+        });
+        
         if (faviconResponse.ok) {
-          return faviconResponse;
-        } else {
-          // Fallback: Generar un favicon vacío para evitar errores 404
-          const emptyFavicon = new Uint8Array([0,0,1,0,1,0,16,16,0,0,1,0,24,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]);
-          return new Response(emptyFavicon, {
+          console.log('Favicon cargado exitosamente');
+          // Crear una nueva respuesta para agregar headers estándar
+          const body = await faviconResponse.arrayBuffer();
+          return new Response(body, {
+            status: 200,
             headers: {
-              'Content-Type': 'image/x-icon',
-              'Cache-Control': 'public, max-age=31536000',
+              'Content-Type': url.pathname === '/favicon.ico' ? 'image/x-icon' : 'image/svg+xml',
+              'Cache-Control': 'public, max-age=86400',
               ...standardHeaders
             }
           });
         }
+        
+        // Si falla el fetch, intentar cargar desde dist/ directamente
+        console.log('Favicon no encontrado, generando uno simple');
       } catch (e) {
         console.error('Error al cargar favicon:', e);
-        // Servir favicon vacío en caso de error
-        const emptyFavicon = new Uint8Array([0,0,1,0,1,0,16,16,0,0,1,0,24,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]);
+      }
+      
+      // Si llegamos aquí, ninguno de los intentos anteriores funcionó
+      // Generamos un favicon básico en memoria
+      if (url.pathname === '/favicon.ico') {
+        // Favicon binario mínimo válido para ICO
+        const emptyFavicon = new Uint8Array([
+          0,0,1,0,1,0,16,16,0,0,1,0,24,0,36,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,255,255,255,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+        ]);
         return new Response(emptyFavicon, {
+          status: 200,
           headers: {
             'Content-Type': 'image/x-icon',
+            'Cache-Control': 'public, max-age=31536000',
+            ...standardHeaders
+          }
+        });
+      } else {
+        // SVG simple para favicon.svg
+        const svgIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+          <rect width="100" height="100" rx="20" fill="#2563eb"/>
+          <path d="M30 30 L70 30 L70 70 L30 70 Z" fill="none" stroke="white" stroke-width="5"/>
+          <path d="M40 45 L60 45" stroke="white" stroke-width="5" stroke-linecap="round"/>
+          <path d="M40 55 L55 55" stroke="white" stroke-width="5" stroke-linecap="round"/>
+        </svg>`;
+        return new Response(svgIcon, {
+          status: 200,
+          headers: {
+            'Content-Type': 'image/svg+xml',
             'Cache-Control': 'public, max-age=31536000',
             ...standardHeaders
           }
