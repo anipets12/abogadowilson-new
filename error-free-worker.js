@@ -513,7 +513,8 @@ async function handleRequest(request) {
 }
 
 export default {
-  async fetch(request, env) {
+  // Asegurar disponibilidad de bindings KV y D1
+  async fetch(request, env, ctx) {
     // Cargar variables desde environment
     Object.assign(ENV, {
       SUPABASE_URL: env.SUPABASE_URL,
@@ -525,11 +526,22 @@ export default {
       N8N_WEBHOOK_URL: env.N8N_WEBHOOK_URL,
       CONTACT_EMAIL: env.CONTACT_EMAIL
     });
+    
+    // Agregar bindings globales para KV y D1
+    global.ABOGADO_WILSON_KV = env.ABOGADO_WILSON_KV;
+    global.ABOGADO_WILSON_DB = env.ABOGADO_WILSON_DB;
+    
     try {
       return await handleRequest(request);
     } catch (error) {
       console.error('Error crítico en handler:', error);
-      return new Response('Error interno', { status: 500 });
+      return new Response('Error interno del servidor', { 
+        status: 500,
+        headers: {
+          'Content-Type': 'text/plain',
+          'Cache-Control': 'no-store'
+        }
+      });
     }
   }
 };
