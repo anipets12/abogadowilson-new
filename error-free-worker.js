@@ -125,39 +125,232 @@ function generateJWT(payload) {
  * @param {Request} request - Solicitud original
  * @param {URL} url - URL analizada
  * @param {Object} headers - Headers estándar
+ * @param {Object} options - Opciones adicionales con bindings
  * @returns {Response} - Respuesta de la API
  */
-async function handleApiRequest(request, url, headers) {
-  const apiPath = url.pathname.replace('/api/', '');
-  const supabase = getSupabaseClient();
-  
+async function handleApiRequest(request, url, headers, options = {}) {
   try {
-    // Extraer parametros de la consulta y el cuerpo
-    const queryParams = Object.fromEntries(url.searchParams);
+    const { kv, db } = options;
+    const apiPath = url.pathname.replace("/api/", "");
+    const queryParams = Object.fromEntries(url.searchParams.entries());
     let bodyData = {};
     
+    // Parse body data for methods that might have a body
     if (['POST', 'PUT', 'PATCH'].includes(request.method)) {
-      try {
+      const contentType = request.headers.get('content-type') || '';
+      
+      if (contentType.includes('application/json')) {
         bodyData = await request.json();
-      } catch (e) {
-        console.error('Error al parsear cuerpo JSON:', e);
+      } else if (contentType.includes('application/x-www-form-urlencoded')) {
+        const formData = await request.formData();
+        for (const [key, value] of formData.entries()) {
+          bodyData[key] = value;
+        }
       }
     }
     
-    // Respuestas comunes
+    // Función helper para respuestas JSON
     const jsonResponse = (data, status = 200) => {
       return new Response(JSON.stringify(data), {
         status,
         headers: {
-          ...headers,
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          ...headers
         }
       });
     };
     
+    // Función helper para respuestas de error
     const errorResponse = (message, status = 400) => {
       return jsonResponse({ error: message }, status);
     };
+    
+    // Verificar servicios disponibles
+    if (ENV.API_ENABLED !== true) {
+      return new Response(JSON.stringify({ error: 'API deshabilitada temporalmente' }), {
+        status: 503,
+        headers: {
+          'Content-Type': 'application/json',
+          ...headers
+        }
+      });
+    }
+
+    // Verificar si tenemos bindings de KV y D1
+    if (!kv || !db) {
+      console.warn('Bindings KV o D1 no disponibles');
+    }
+
+    // MAPA DE RUTAS API
+    // =================
+    
+    // Submódulos API
+    if (url.pathname.startsWith('/api/contacto')) {
+      // Rutas de contacto
+      if (apiPath === 'contacto/enviar') {
+        if (request.method !== 'POST') return errorResponse('Método no permitido', 405);
+        
+        try {
+          const { name, email, phone, message } = bodyData;
+          
+          if (!name || !email || !message) {
+            return errorResponse('Campos nombre, email y mensaje son obligatorios');
+          }
+          
+          // Guardar en Supabase
+          const result = await getSupabaseClient()
+            .from('contacto')
+            .insert([{
+              name,
+              email,
+              phone: phone || '',
+              message,
+              created_at: new Date().toISOString()
+            }]);
+            
+          if (result.error) throw new Error(result.error.message);
+          
+          // Enviar notificación
+          await sendWhatsAppNotification({
+            message: `¡Nuevo mensaje de contacto!
+De: ${name}
+Email: ${email}
+Teléfono: ${phone || 'No proporcionado'}
+Mensaje: ${message}`,
+          });
+          
+          return jsonResponse({
+            success: true,
+            message: 'Mensaje enviado correctamente'
+          });
+        } catch (error) {
+          return errorResponse('Error al enviar mensaje: ' + error.message, 500);
+        }
+      }
+    }
+    
+    if (url.pathname.startsWith('/api/blog')) {
+      // Rutas del blog
+      if (apiPath === 'blog/articulos') {
+        if (request.method !== 'GET') return errorResponse('Método no permitido', 405);
+        
+        try {
+          const articulos = await getSupabaseClient()
+            .from('blog_articulos')
+            .select('id, title, slug, excerpt, featured_image, category, published_at, author');
+            
+          return jsonResponse({ articulos: articulos || [] });
+        } catch (error) {
+          return errorResponse('Error al obtener artículos: ' + error.message, 500);
+        }
+      }
+      
+      if (apiPath.startsWith('blog/articulo/')) {
+        if (request.method !== 'GET') return errorResponse('Método no permitido', 405);
+        
+        try {
+          const slug = apiPath.replace('blog/articulo/', '');
+          if (!slug) return errorResponse('Slug requerido');
+          
+          const articulo = await getSupabaseClient()
+            .from('blog_articulos')
+            .select('*')
+            .eq('slug', slug);
+            
+          if (!articulo || articulo.length === 0) {
+            return errorResponse('Artículo no encontrado', 404);
+          }
+          
+          return jsonResponse({ articulo: articulo[0] });
+        } catch (error) {
+          return errorResponse('Error al obtener artículo: ' + error.message, 500);
+        }
+      }
+    }
+    
+    if (url.pathname.startsWith('/api/chatbot')) {
+      // Rutas del chatbot
+      if (apiPath === 'chatbot/mensaje') {
+        if (request.method !== 'POST') return errorResponse('Método no permitido', 405);
+        
+        try {
+          const { mensaje } = bodyData;
+          
+          if (!mensaje) {
+            return errorResponse('Mensaje requerido');
+          }
+          
+          // Procesar mensaje
+          const respuesta = await procesarMensaje(mensaje);
+          
+          return jsonResponse({ respuesta });
+        } catch (error) {
+          return errorResponse('Error al procesar mensaje: ' + error.message, 500);
+        }
+      }
+    }
+    
+    if (url.pathname.startsWith('/api/dashboard')) {
+      // Rutas del dashboard
+      if (apiPath === 'dashboard/estadisticas') {
+        if (request.method !== 'GET') return errorResponse('Método no permitido', 405);
+        
+        try {
+          const estadisticas = await obtenerEstadisticas();
+          
+          return jsonResponse({ estadisticas });
+        } catch (error) {
+          return errorResponse('Error al obtener estadísticas: ' + error.message, 500);
+        }
+      }
+    }
+    
+    if (url.pathname.startsWith('/api/testimonios')) {
+      // Rutas de testimonios
+      if (apiPath === 'testimonios/listar') {
+        if (request.method !== 'GET') return errorResponse('Método no permitido', 405);
+        
+        try {
+          const testimonios = await getSupabaseClient()
+            .from('testimonios')
+            .select('id, nombre, testimonio, fecha');
+            
+          return jsonResponse({ testimonios: testimonios || [] });
+        } catch (error) {
+          return errorResponse('Error al obtener testimonios: ' + error.message, 500);
+        }
+      }
+      
+      if (apiPath === 'testimonios/agregar') {
+        if (request.method !== 'POST') return errorResponse('Método no permitido', 405);
+        
+        try {
+          const { nombre, testimonio } = bodyData;
+          
+          if (!nombre || !testimonio) {
+            return errorResponse('Nombre y testimonio son obligatorios');
+          }
+          
+          // Guardar testimonio
+          const result = await getSupabaseClient()
+            .from('testimonios')
+            .insert([{
+              nombre,
+              testimonio,
+              fecha: new Date().toISOString()
+            }]);
+            
+          if (result.error) throw new Error(result.error.message);
+          
+          return jsonResponse({
+            success: true,
+            message: 'Testimonio agregado correctamente'
+          });
+        } catch (error) {
+          return errorResponse('Error al agregar testimonio: ' + error.message, 500);
+        }
+      }
+    }
     
     // Rutas de autenticación
     if (apiPath === 'auth/login') {
@@ -167,7 +360,7 @@ async function handleApiRequest(request, url, headers) {
         const { email, password } = bodyData;
         if (!email || !password) return errorResponse('Email y contraseña son requeridos');
         
-        const result = await supabase.auth.signIn({ email, password });
+        const result = await getSupabaseClient().auth.signIn({ email, password });
         if (result.error) return errorResponse(result.error.message, 401);
         
         return jsonResponse({
@@ -176,184 +369,6 @@ async function handleApiRequest(request, url, headers) {
         });
       } catch (error) {
         return errorResponse('Error en la autenticación: ' + error.message, 500);
-      }
-    }
-    
-    // Rutas del blog
-    if (apiPath === 'blog' || apiPath === 'blog/articles') {
-      if (request.method !== 'GET') return errorResponse('Método no permitido', 405);
-      
-      try {
-        const articles = await supabase
-          .from('blog_articles')
-          .select('id, title, slug, excerpt, featured_image, category, published_at, author')
-          .order('published_at', { ascending: false });
-          
-        return jsonResponse({ articles: articles || [] });
-      } catch (error) {
-        return errorResponse('Error al obtener artículos: ' + error.message, 500);
-      }
-    }
-    
-    if (apiPath.startsWith('blog/article/')) {
-      if (request.method !== 'GET') return errorResponse('Método no permitido', 405);
-      
-      try {
-        const slug = apiPath.replace('blog/article/', '');
-        if (!slug) return errorResponse('Slug requerido');
-        
-        const article = await supabase
-          .from('blog_articles')
-          .select('*')
-          .eq('slug', slug);
-          
-        if (!article || article.length === 0) {
-          return errorResponse('Artículo no encontrado', 404);
-        }
-        
-        return jsonResponse({ article: article[0] });
-      } catch (error) {
-        return errorResponse('Error al obtener artículo: ' + error.message, 500);
-      }
-    }
-    
-    // Rutas de consultas legales
-    if (apiPath === 'consultations/create') {
-      if (request.method !== 'POST') return errorResponse('Método no permitido', 405);
-      
-      try {
-        const { name, email, phone, message, service_type } = bodyData;
-        
-        if (!name || !email || !message) {
-          return errorResponse('Campos nombre, email y mensaje son obligatorios');
-        }
-        
-        // Guardar en Supabase
-        const result = await supabase
-          .from('consultations')
-          .insert([{
-            name,
-            email,
-            phone: phone || '',
-            message,
-            service_type: service_type || 'general',
-            status: 'pending',
-            created_at: new Date().toISOString()
-          }]);
-          
-        if (result.error) throw new Error(result.error.message);
-        
-        // Enviar notificación WhatsApp si está habilitado
-        await sendWhatsAppNotification({
-          message: `¡Nueva consulta legal!
-De: ${name}
-Email: ${email}
-Teléfono: ${phone || 'No proporcionado'}
-Tipo: ${service_type || 'General'}
-Mensaje: ${message}`,
-        });
-        
-        return jsonResponse({
-          success: true,
-          message: 'Consulta recibida correctamente'
-        });
-      } catch (error) {
-        return errorResponse('Error al procesar consulta: ' + error.message, 500);
-      }
-    }
-    
-    // Rutas de citas/reservas
-    if (apiPath === 'appointments/available') {
-      if (request.method !== 'GET') return errorResponse('Método no permitido', 405);
-      
-      try {
-        const { date } = queryParams;
-        if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-          return errorResponse('Formato de fecha inválido. Utilice YYYY-MM-DD');
-        }
-        
-        // Obtener citas existentes
-        const existingAppointments = await supabase
-          .from('appointments')
-          .select('time_slot')
-          .eq('date', date);
-        
-        // Definir slots disponibles (9 AM a 5 PM, cada hora)
-        const allSlots = [
-          '09:00', '10:00', '11:00', '12:00', '14:00', '15:00', '16:00', '17:00'
-        ];
-        
-        // Filtrar slots ocupados
-        const bookedSlots = existingAppointments ? 
-          existingAppointments.map(app => app.time_slot) : [];
-        const availableSlots = allSlots.filter(slot => !bookedSlots.includes(slot));
-        
-        return jsonResponse({ 
-          date, 
-          available_slots: availableSlots,
-          booked_slots: bookedSlots
-        });
-      } catch (error) {
-        return errorResponse('Error al obtener slots disponibles: ' + error.message, 500);
-      }
-    }
-    
-    if (apiPath === 'appointments/create') {
-      if (request.method !== 'POST') return errorResponse('Método no permitido', 405);
-      
-      try {
-        const { name, email, phone, date, time_slot, service_type, message } = bodyData;
-        
-        if (!name || !email || !date || !time_slot) {
-          return errorResponse('Campos nombre, email, fecha y horario son obligatorios');
-        }
-        
-        // Verificar disponibilidad
-        const existingAppointment = await supabase
-          .from('appointments')
-          .select('id')
-          .eq('date', date)
-          .eq('time_slot', time_slot);
-        
-        if (existingAppointment && existingAppointment.length > 0) {
-          return errorResponse('El horario seleccionado ya no está disponible', 409);
-        }
-        
-        // Crear la cita
-        const result = await supabase
-          .from('appointments')
-          .insert([{
-            name,
-            email,
-            phone: phone || '',
-            date,
-            time_slot,
-            service_type: service_type || 'general',
-            message: message || '',
-            status: 'scheduled',
-            created_at: new Date().toISOString()
-          }]);
-          
-        if (result.error) throw new Error(result.error.message);
-        
-        // Enviar notificación
-        await sendWhatsAppNotification({
-          message: `¡Nueva cita programada!
-De: ${name}
-Email: ${email}
-Teléfono: ${phone || 'No proporcionado'}
-Fecha: ${date}
-Hora: ${time_slot}
-Tipo: ${service_type || 'General'}`,
-        });
-        
-        return jsonResponse({
-          success: true,
-          message: 'Cita programada correctamente',
-          appointment_id: result.data[0].id
-        });
-      } catch (error) {
-        return errorResponse('Error al programar cita: ' + error.message, 500);
       }
     }
     
@@ -373,19 +388,25 @@ Tipo: ${service_type || 'General'}`,
 
 /**
  * Maneja todas las solicitudes entrantes
- * @param {Request} request - Solicitud original
- * @returns {Response} - Respuesta generada
+ * @param {Request} request - Objeto Request
+ * @param {Object} options - Opciones adicionales con bindings
+ * @returns {Promise<Response>} - Respuesta HTTP
  */
-async function handleRequest(request) {
+async function handleRequest(request, options = {}) {
   const url = new URL(request.url);
+  const { kv, db, ctx } = options;
   
   // Headers estándar para todas las respuestas
   const standardHeaders = {
     'Access-Control-Allow-Origin': ENV.CORS_ORIGIN,
     'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Cache-Control': 'public, max-age=3600',
     'X-Content-Type-Options': 'nosniff',
-    'X-XSS-Protection': '1; mode=block'
+    'X-Frame-Options': 'DENY',
+    'Referrer-Policy': 'strict-origin-when-cross-origin',
+    'Strict-Transport-Security': 'max-age=31536000; includeSubDomains; preload',
+    'Permissions-Policy': 'geolocation=(), microphone=(), camera=()',
   };
   
   // Manejar solicitudes CORS OPTIONS
@@ -397,8 +418,9 @@ async function handleRequest(request) {
   }
   
   // Rutas API para servicios integrados
-  if (url.pathname.startsWith('/api/') && ENV.API_ENABLED) {
-    return handleApiRequest(request, url, standardHeaders);
+  if (url.pathname.startsWith('/api/')) {
+    // Manejar solicitudes API con bindings
+    return handleApiRequest(request, url, standardHeaders, { kv, db });
   }
   
   // Manejo específico para favicon.ico y favicon.svg - SOLUCIÓN DEFINITIVA
@@ -527,12 +549,13 @@ export default {
       CONTACT_EMAIL: env.CONTACT_EMAIL
     });
     
-    // Agregar bindings globales para KV y D1
-    global.ABOGADO_WILSON_KV = env.ABOGADO_WILSON_KV;
-    global.ABOGADO_WILSON_DB = env.ABOGADO_WILSON_DB;
-    
     try {
-      return await handleRequest(request);
+      // Pasar servicios como opciones
+      return await handleRequest(request, {
+        kv: env.ABOGADO_WILSON_KV,
+        db: env.ABOGADO_WILSON_DB,
+        ctx: ctx
+      });
     } catch (error) {
       console.error('Error crítico en handler:', error);
       return new Response('Error interno del servidor', { 
