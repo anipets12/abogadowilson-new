@@ -23,6 +23,13 @@ addEventListener('fetch', event => {
 async function handleRequest(request) {
   const url = new URL(request.url);
   
+  // Configuración para CORS
+  const corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, HEAD, POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Client-Info'
+  };
+  
   // Headers estándar para todas las respuestas
   const standardHeaders = {
     'Access-Control-Allow-Origin': '*',
@@ -40,11 +47,41 @@ async function handleRequest(request) {
     });
   }
   
+  // Manejo de opciones de CORS para solicitudes preflight
+  if (request.method === 'OPTIONS') {
+    return new Response(null, {
+      status: 204,
+      headers: corsHeaders
+    });
+  }
+  
+  // Manejo de rutas de API
+  if (url.pathname.startsWith('/api/')) {
+    // Endpoint específico para config
+    if (url.pathname === '/api/config' || url.pathname === '/api/config/') {
+      const config = {
+        VITE_SUPABASE_URL: 'https://phzldiaohelbyobhjrnc.supabase.co',
+        VITE_SUPABASE_KEY: 'sbp_db5898ecc094d37ec87562399efe3833e63ab20f',
+        VITE_APP_VERSION: '3.0.0',
+        CONFIG_LOADED: true,
+        CONFIG_VERSION: '2.0.1',
+        CONFIG_TIMESTAMP: new Date().toISOString()
+      };
+      
+      return new Response(JSON.stringify(config), {
+        headers: {
+          'Content-Type': 'application/json',
+          ...corsHeaders
+        }
+      });
+    }
+  }
+  
   // Manejo específico para favicon.ico y favicon.svg - SOLUCIÓN DEFINITIVA
   if (url.pathname === '/favicon.ico' || url.pathname === '/favicon.svg') {
     try {
       // Intentar servir el archivo desde los assets estáticos
-      const faviconResponse = await fetch(`${url.origin}/public/favicon.ico`);
+      const faviconResponse = await fetch(`${url.origin}/favicon.svg`);
       
       if (faviconResponse.ok) {
         const newResponse = new Response(faviconResponse.body, faviconResponse);
@@ -60,12 +97,12 @@ async function handleRequest(request) {
     }
       
     // Favicon de respaldo en formato SVG
-    const svgIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+    const svgIcon = \<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
       <rect width="100" height="100" rx="20" fill="#2563eb"/>
       <path d="M30 30 L70 30 L70 70 L30 70 Z" fill="none" stroke="white" stroke-width="5"/>
       <path d="M40 45 L60 45" stroke="white" stroke-width="5" stroke-linecap="round"/>
       <path d="M40 55 L55 55" stroke="white" stroke-width="5" stroke-linecap="round"/>
-    </svg>`;
+    </svg>\;
     
     return new Response(svgIcon, {
       status: 200,
@@ -99,7 +136,7 @@ async function handleRequest(request) {
     
     // Para rutas SPA o recursos no encontrados, servir index.html
     try {
-      const response = await fetch(`${url.origin}/index.html`);
+      const response = await fetch(\\/index.html\);
       
       if (response.ok) {
         const newResponse = new Response(response.body, response);
@@ -113,7 +150,7 @@ async function handleRequest(request) {
     }
     
     // Fallback HTML si todo lo anterior falla
-    return new Response(`
+    return new Response(\
       <!DOCTYPE html>
       <html lang="es">
       <head>
@@ -133,7 +170,7 @@ async function handleRequest(request) {
         <button onclick="window.location.reload()">Refrescar página</button>
       </body>
       </html>
-    `, {
+    \, {
       status: 200,
       headers: {
         'Content-Type': 'text/html',
