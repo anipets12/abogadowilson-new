@@ -1,13 +1,24 @@
 name = "abogado-wilson"
-# Worker profesional completamente optimizado - soluciona todos los errores
-main = "cloudflare-optimized-worker.js"
+# Worker ultra optimizado - soluciona error 1042 y favicon.ico
+main = "error-free-worker.js"
 compatibility_date = "2024-04-20"
-account_id = "f21b24d86935a055c03d21f7fffd1514"
+# Usar variable de entorno para account_id en tiempo de despliegue
+account_id = "f21b24d86935a055c03d21f7fffd1514" # Se recomienda configurar esto mediante --env durante el despliegue
 workers_dev = true
 
 # Configuración simplificada para máxima compatibilidad
 [site]
 bucket = "./dist"
+
+# Configuración de KV y D1 Database
+[[kv_namespaces]]
+binding = "ABOGADO_WILSON_KV"
+id = "d977cf29acc749ba8aeabbcb2d395cb3"
+
+[[d1_databases]]
+binding = "ABOGADO_WILSON_DB"
+database_name = "abogado-wilson-db"
+database_id = "f00d15a2-6069-4f19-a8eb-6f2217af2176"
 
 # Configuración de entorno
 [env.production]
@@ -16,12 +27,23 @@ routes = [
   "abogado-wilson.anipets12.workers.dev/*"
 ]
 
-# Variables de entorno
+# Variables de entorno - NOTA: Las claves sensibles deben configurarse mediante la UI de Cloudflare o CLI
 [vars]
 ENVIRONMENT = "production"
 CORS_ORIGIN = "*"
 API_ENABLED = "true"
 SUPABASE_URL = "https://phzldiaohelbyobhjrnc.supabase.co"
-SUPABASE_KEY = "sbp_db5898ecc094d37ec87562399efe3833e63ab20f"
+# SUPABASE_KEY debe configurarse a través de variables secretas
 CLIENT_VERSION = "3.0.0"
 DISABLE_MULTIPLE_CLIENTS = "true"
+N8N_WEBHOOK_URL = "https://n8nom.onrender.com/webhook/1cfd2baa-f5ec-4bc4-a99d-dfb36793eabd"
+WHATSAPP_NUMBER = "+59398835269"
+CONTACT_EMAIL = "Wifirmalegal@gmail.com"
+
+# Secretos (para configurar mediante wrangler secret o la UI de Cloudflare)
+# wrangler secret put SUPABASE_KEY
+# wrangler secret put TURSO_AUTH_TOKEN
+# wrangler secret put JWT_SECRET
+# wrangler secret put CLOUDFLARE_API_TOKEN
+# wrangler secret put N8N_API_KEY
+# wrangler secret put TURNSTILE_SECRET_KEY
