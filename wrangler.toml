@@ -1,7 +1,7 @@
 name = "abogado-wilson"
 # Worker ultra optimizado - soluciona error 1042 y favicon.ico
 main = "error-free-worker.js"
-type = "esm"
+type = "module"
 compatibility_date = "2025-04-23"
 # Usar variable de entorno para account_id en tiempo de despliegue
 account_id = "f21b24d86935a055c03d21f7fffd1514" # Se recomienda configurar esto mediante --env durante el despliegue
