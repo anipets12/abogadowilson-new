@@ -1,3 +1,5 @@
+// Updated on 2025-04-23 – Bump version to trigger fresh deploy
+
 /**
  * WORKER CLOUDFLARE OPTIMIZADO - ABOGADO WILSON v2.0
  * 
