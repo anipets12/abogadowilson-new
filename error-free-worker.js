@@ -478,19 +478,29 @@ async function handleRequest(request, options = {}) {
       }
     }
     
-    // Para rutas SPA o recursos no encontrados, servir index.html
-    try {
-      const response = await fetch('/index.html');
-      
-      if (response.ok) {
-        const newResponse = new Response(response.body, response);
-        Object.entries(standardHeaders).forEach(([key, value]) => {
-          newResponse.headers.set(key, value);
+    // Para rutas SPA navegación basada en cliente (como /registro, /blog, etc.)
+    // Si la URL no tiene extensión, probablemente sea una ruta SPA
+    if (!url.pathname.includes('.') || url.pathname.startsWith('/api/')) {
+      console.log('Manejando ruta SPA:', url.pathname);
+      try {
+        // Servir siempre index.html para rutas que no tienen extensión
+        // Es el comportamiento esperado para Single Page Apps
+        const indexRequest = new Request(new URL('/index.html', request.url), {
+          headers: request.headers
         });
-        return newResponse;
+        const response = await fetch(indexRequest);
+        
+        if (response.ok) {
+          console.log('Sirviendo index.html para SPA route:', url.pathname);
+          const newResponse = new Response(response.body, response);
+          Object.entries(standardHeaders).forEach(([key, value]) => {
+            newResponse.headers.set(key, value);
+          });
+          return newResponse;
+        }
+      } catch (e) {
+        console.error('Error al cargar index.html para SPA:', e, url.pathname);
       }
-    } catch (e) {
-      console.error('Error al cargar index.html:', e);
     }
     
     // Fallback HTML si todo lo anterior falla
