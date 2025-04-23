@@ -424,77 +424,123 @@ async function handleRequest(request, options = {}) {
     return handleApiRequest(request, url, standardHeaders, { kv, db });
   }
   
-    // SOLUCIÓN DEFINITIVA para favicon.ico y favicon.svg
-    if (url.pathname === '/favicon.ico' || url.pathname === '/favicon.svg') {
-      console.log('Solicitando favicon:', url.pathname);
+    // SOLUCIÓN GLOBAL Y DEFINITIVA para favicon.ico y favicon.svg en todas las rutas
+    // Esto funcionará para cualquier solicitud de favicon, sin importar la ruta o subdominio
+    if (url.pathname.endsWith('/favicon.ico') || url.pathname.endsWith('/favicon.svg')) {
+      console.log('[FAVICON] Solicitud detectada:', url.pathname);
       
-      try {
-        // Intentar obtener directamente de los assets estáticos usando la ruta absoluta
-        // Esto asegura que estamos accediendo a la ubicación correcta del favicon
-        const faviconPath = url.pathname === '/favicon.ico' ? '/favicon.ico' : '/favicon.svg';
-        const origin = new URL(request.url).origin;
-        const faviconUrl = `${origin}${faviconPath}`;
-        console.log('Intentando cargar favicon desde:', faviconUrl);
-        
-        const faviconResponse = await fetch(faviconUrl, {
-          cf: {
-            // Buscar en el cache primero
-            cacheTtl: 86400,
-            cacheEverything: true
-          }
-        });
-        
-        if (faviconResponse.ok) {
-          console.log('Favicon cargado exitosamente');
-          // Crear una nueva respuesta para agregar headers estándar
-          const body = await faviconResponse.arrayBuffer();
-          return new Response(body, {
-            status: 200,
-            headers: {
-              'Content-Type': url.pathname === '/favicon.ico' ? 'image/x-icon' : 'image/svg+xml',
-              'Cache-Control': 'public, max-age=86400',
-              ...standardHeaders
-            }
-          });
-        }
-        
-        // Si falla el fetch, intentar cargar desde dist/ directamente
-        console.log('Favicon no encontrado, generando uno simple');
-      } catch (e) {
-        console.error('Error al cargar favicon:', e);
-      }
-      
-      // Si llegamos aquí, ninguno de los intentos anteriores funcionó
-      // Generamos un favicon básico en memoria
-      if (url.pathname === '/favicon.ico') {
-        // Favicon binario mínimo válido para ICO
-        const emptyFavicon = new Uint8Array([
-          0,0,1,0,1,0,16,16,0,0,1,0,24,0,36,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,255,255,255,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-        ]);
-        return new Response(emptyFavicon, {
-          status: 200,
-          headers: {
-            'Content-Type': 'image/x-icon',
-            'Cache-Control': 'public, max-age=31536000',
-            ...standardHeaders
-          }
-        });
-      } else {
-        // SVG simple para favicon.svg
-        const svgIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+      // Definimos los favicons estáticos (binarios) para cada formato
+      // Esto nos asegura tener siempre una respuesta válida sin depender de archivos externos
+      const staticFavicons = {
+        // Favicon.ico, un icono ICO 16x16 completamente válido (16x16, 32bpp)
+        ico: new Uint8Array([
+          0,0,1,0,1,0,16,16,0,0,1,0,32,0,104,4,0,0,22,0,0,0,40,0,0,0,16,0,0,0,32,0,0,0,1,0,32,0,0,0,0,0,0,4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+          0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,20,113,222,0,20,113,222,23,20,113,222,96,20,113,222,149,20,113,222,192,20,113,222,223,20,113,222,236,
+          20,113,222,238,20,113,222,238,20,113,222,236,20,113,222,223,20,113,222,192,20,113,222,149,20,113,222,96,20,113,222,23,20,113,222,0,0,0,0,0,20,113,222,23,
+          20,113,222,142,20,113,222,239,20,113,222,254,20,113,222,255,20,113,222,255,20,113,222,255,20,113,222,255,20,113,222,255,20,113,222,255,20,113,222,255,
+          20,113,222,255,20,113,222,255,20,113,222,254,20,113,222,239,20,113,222,143,20,113,222,23,0,0,0,0,20,113,222,96,20,113,222,239,20,113,222,255,20,113,222,
+          255,20,113,222,255,20,113,222,255,20,113,222,255,20,113,222,255,20,113,222,255,20,113,222,255,20,113,222,255,20,113,222,255,20,113,222,255,20,113,222,
+          255,20,113,222,255,20,113,222,239,20,113,222,96,0,0,0,0,20,113,222,149,20,113,222,254,20,113,222,255,20,113,222,255,20,113,222,226,20,113,222,180,20,
+          113,222,151,20,113,222,151,20,113,222,151,20,113,222,151,20,113,222,151,20,113,222,180,20,113,222,226,20,113,222,255,20,113,222,255,20,113,222,254,20,
+          113,222,149,0,0,0,0,20,113,222,192,20,113,222,255,20,113,222,255,20,113,222,226,20,113,222,67,20,113,222,0,20,113,222,0,20,113,222,0,20,113,222,0,20,
+          113,222,0,20,113,222,0,20,113,222,67,20,113,222,226,20,113,222,255,20,113,222,255,20,113,222,192,0,0,0,0,20,113,222,223,20,113,222,255,20,113,222,255,
+          20,113,222,180,20,113,222,0,20,113,222,0,20,113,222,0,20,113,222,0,20,113,222,0,20,113,222,0,20,113,222,0,20,113,222,0,20,113,222,180,20,113,222,255,
+          20,113,222,255,20,113,222,223,0,0,0,0,20,113,222,236,20,113,222,255,20,113,222,255,20,113,222,151,20,113,222,0,20,113,222,0,20,113,222,0,20,113,222,0,
+          20,113,222,0,20,113,222,0,20,113,222,0,20,113,222,0,20,113,222,151,20,113,222,255,20,113,222,255,20,113,222,236,0,0,0,0,20,113,222,238,20,113,222,255,
+          20,113,222,255,20,113,222,151,20,113,222,0,20,113,222,0,20,113,222,0,20,113,222,0,20,113,222,0,20,113,222,0,20,113,222,0,20,113,222,0,20,113,222,151,
+          20,113,222,255,20,113,222,255,20,113,222,238,0,0,0,0,20,113,222,238,20,113,222,255,20,113,222,255,20,113,222,151,20,113,222,0,20,113,222,0,20,113,222,
+          0,20,113,222,0,20,113,222,0,20,113,222,0,20,113,222,0,20,113,222,0,20,113,222,151,20,113,222,255,20,113,222,255,20,113,222,238,0,0,0,0,20,113,222,236,
+          20,113,222,255,20,113,222,255,20,113,222,151,20,113,222,0,20,113,222,0,20,113,222,0,20,113,222,0,20,113,222,0,20,113,222,0,20,113,222,0,20,113,222,0,
+          20,113,222,151,20,113,222,255,20,113,222,255,20,113,222,236,0,0,0,0,20,113,222,223,20,113,222,255,20,113,222,255,20,113,222,180,20,113,222,0,20,113,
+          222,0,20,113,222,0,20,113,222,0,20,113,222,0,20,113,222,0,20,113,222,0,20,113,222,0,20,113,222,180,20,113,222,255,20,113,222,255,20,113,222,223,0,0,
+          0,0,20,113,222,192,20,113,222,255,20,113,222,255,20,113,222,226,20,113,222,67,20,113,222,0,20,113,222,0,20,113,222,0,20,113,222,0,20,113,222,0,20,113,
+          222,0,20,113,222,67,20,113,222,226,20,113,222,255,20,113,222,255,20,113,222,192,0,0,0,0,20,113,222,149,20,113,222,254,20,113,222,255,20,113,222,255,20,
+          113,222,226,20,113,222,180,20,113,222,151,20,113,222,151,20,113,222,151,20,113,222,151,20,113,222,151,20,113,222,180,20,113,222,226,20,113,222,255,20,
+          113,222,255,20,113,222,254,20,113,222,149,0,0,0,0,20,113,222,96,20,113,222,239,20,113,222,255,20,113,222,255,20,113,222,255,20,113,222,255,20,113,222,
+          255,20,113,222,255,20,113,222,255,20,113,222,255,20,113,222,255,20,113,222,255,20,113,222,255,20,113,222,255,20,113,222,255,20,113,222,239,20,113,222,
+          96,0,0,0,0,20,113,222,23,20,113,222,143,20,113,222,239,20,113,222,254,20,113,222,255,20,113,222,255,20,113,222,255,20,113,222,255,20,113,222,255,20,
+          113,222,255,20,113,222,255,20,113,222,255,20,113,222,255,20,113,222,254,20,113,222,239,20,113,222,143,20,113,222,23,0,0,0,0,20,113,222,0,20,113,222,
+          23,20,113,222,96,20,113,222,149,20,113,222,192,20,113,222,223,20,113,222,236,20,113,222,238,20,113,222,238,20,113,222,236,20,113,222,223,20,113,222,
+          192,20,113,222,149,20,113,222,96,20,113,222,23,20,113,222,0,0,0,0,0
+        ]),
+
+        // Favicon.svg - Un SVG simple y ligero (menos de 1KB)
+        svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
           <rect width="100" height="100" rx="20" fill="#2563eb"/>
           <path d="M30 30 L70 30 L70 70 L30 70 Z" fill="none" stroke="white" stroke-width="5"/>
           <path d="M40 45 L60 45" stroke="white" stroke-width="5" stroke-linecap="round"/>
           <path d="M40 55 L55 55" stroke="white" stroke-width="5" stroke-linecap="round"/>
-        </svg>`;
-        return new Response(svgIcon, {
-          status: 200,
-          headers: {
-            'Content-Type': 'image/svg+xml',
-            'Cache-Control': 'public, max-age=31536000',
-            ...standardHeaders
+        </svg>`
+      };
+      
+      try {
+        // Primero intentamos cargar el favicon desde los assets estáticos
+        // Normalizamos la ruta para usar siempre una ruta absoluta
+        const faviconType = url.pathname.endsWith('favicon.ico') ? 'ico' : 'svg';
+        const faviconPath = faviconType === 'ico' ? '/favicon.ico' : '/favicon.svg';
+        
+        // Configuramos cache agresivo para favicons
+        const cacheHeaders = {
+          'Cache-Control': 'public, max-age=31536000, immutable', // 1 año
+          'Content-Type': faviconType === 'ico' ? 'image/x-icon' : 'image/svg+xml',
+          ...standardHeaders
+        };
+        
+        // Intentamos primero cargar desde assets estáticos
+        try {
+          console.log('[FAVICON] Intentando cargar desde assets:', faviconPath);
+          
+          // Construir una URL absoluta para acceder al favicon directamente
+          const origin = new URL(request.url).origin;
+          const faviconUrl = `${origin}${faviconPath}`;
+          
+          const assetResponse = await fetch(faviconUrl, {
+            cf: {
+              cacheTtl: 86400, // 1 día de cache en CF
+              cacheEverything: true
+            }
+          });
+          
+          if (assetResponse.ok) {
+            console.log('[FAVICON] Cargado exitosamente desde assets');
+            const body = await assetResponse.arrayBuffer();
+            return new Response(body, {
+              status: 200,
+              headers: cacheHeaders
+            });
           }
+        } catch (assetError) {
+          console.log('[FAVICON] Error al cargar desde assets:', assetError.message);
+        }
+        
+        // Si no podemos cargar de assets, devolvemos el favicon estático en memoria
+        console.log('[FAVICON] Usando favicon estático en memoria');
+        const staticContent = faviconType === 'ico' ? staticFavicons.ico : staticFavicons.svg;
+        
+        return new Response(staticContent, {
+          status: 200,
+          headers: cacheHeaders
         });
+        
+      } catch (e) {
+        // En caso de error inesperado, aun así devolvemos un favicon válido
+        console.error('[FAVICON] Error inesperado:', e);
+        
+        // Determinar qué tipo de favicon se solicitó
+        const isFaviconIco = url.pathname.endsWith('favicon.ico');
+        
+        // Devolver el favicon estático correspondiente
+        return new Response(
+          isFaviconIco ? staticFavicons.ico : staticFavicons.svg, 
+          {
+            status: 200,
+            headers: {
+              'Content-Type': isFaviconIco ? 'image/x-icon' : 'image/svg+xml',
+              'Cache-Control': 'public, max-age=31536000',
+              ...standardHeaders
+            }
+          }
+        );
       }
     }
   
