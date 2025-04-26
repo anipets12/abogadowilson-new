@@ -1,19 +1,32 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
-import path from 'path';
+import { resolve } from 'path';
 
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
+  base: './',
   server: {
-    port: 5173,
-    strictPort: false,
+    port: 5174,
+    strictPort: true,
     cors: true,
+    fs: {
+      allow: ['..', '/']
+    },
+    hmr: {
+      protocol: 'ws',
+      host: 'localhost',
+      port: 5174,
+      clientPort: 5174,
+      timeout: 5000,
+      overlay: false
+    },
     proxy: {
       '/api': {
-        target: 'http://localhost:5173',
+        target: 'https://api.abogadowilson.com',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api/, ''),
+        secure: true,
+        ws: true,
         configure: (proxy, _options) => {
           proxy.on('error', (err, _req, _res) => {
             console.log('proxy error', err);
@@ -30,7 +43,7 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, './src'),
+      '@': resolve(__dirname, './src'),
     }
   },
   build: {

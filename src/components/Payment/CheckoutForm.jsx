@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { FaCreditCard, FaMoneyBillWave, FaPaypal, FaMobileAlt, FaQrcode, FaUniversity, FaCoins, FaInfoCircle } from 'react-icons/fa';
+import { FaCreditCard, FaMoneyBillWave, FaPaypal, FaMobileAlt, FaQrcode, FaUniversity, FaCoins, FaInfoCircle, FaBitcoin } from 'react-icons/fa';
+import { SiBinance } from 'react-icons/si';
 import { toast } from 'react-hot-toast';
 import PayPalButton from './PayPalButton';
 import WhatsAppPayment from './WhatsAppPayment';
@@ -9,6 +10,7 @@ import BankTransfer from './BankTransfer';
 import CreditCardForm from './CreditCardForm';
 import MobilePaymentForm from './MobilePaymentForm';
 import TurnstileWidget from '../TurnstileWidget';
+import BinancePayButton from './BinancePayButton';
 
 const CheckoutForm = () => {
   const { user, tokenBalance, updateTokenBalance } = useAuth();
@@ -264,7 +266,7 @@ const CheckoutForm = () => {
         <div className="p-6 border-b border-gray-200">
           <h2 className="text-xl font-semibold mb-4">Seleccione Método de Pago</h2>
           
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-7 gap-3">
             <button
               type="button"
               onClick={() => setPaymentMethod('credit_card')}
@@ -281,6 +283,15 @@ const CheckoutForm = () => {
             >
               <FaPaypal className="text-2xl mb-1 text-blue-800" />
               <span className="text-xs font-medium">PayPal</span>
+            </button>
+            
+            <button
+              type="button"
+              onClick={() => setPaymentMethod('binance_pay')}
+              className={`p-3 rounded-lg flex flex-col items-center justify-center ${paymentMethod === 'binance_pay' ? 'bg-blue-100 border-blue-500 border-2' : 'bg-gray-100 hover:bg-gray-200 border border-yellow-300'}`}
+            >
+              <SiBinance className="text-2xl mb-1 text-yellow-500" />
+              <span className="text-xs font-medium">Binance</span>
             </button>
             
             <button
@@ -325,6 +336,25 @@ const CheckoutForm = () => {
         <div className="p-6 border-b border-gray-200">
           {paymentMethod === 'credit_card' && <CreditCardForm />}
           {paymentMethod === 'paypal' && <PayPalButton amount={getTotal()} />}
+          {paymentMethod === 'binance_pay' && (
+            <div className="flex flex-col items-center p-4 rounded-lg border-2 border-yellow-200 bg-yellow-50">
+              <img src="/images/binance-pay-logo.svg" alt="Binance Pay" className="w-16 h-16 mb-3" onError={(e) => {e.target.src = 'https://public.bnbstatic.com/static/images/common/binance-logo.png'; e.target.className='w-24 h-12 mb-3';}} />
+              <p className="mb-4 text-center text-gray-700">Pague con criptomonedas de forma rápida y segura a través de Binance Pay.</p>
+              <BinancePayButton 
+                amount={getTotal()} 
+                description={selectedPackage ? `Paquete de ${selectedPackage.tokens} tokens` : `Recarga personalizada`}
+                onPaymentSuccess={() => {
+                  toast.success('Pago procesado con Binance Pay');
+                  navigate('/gracias');
+                }}
+                buttonText="Pagar con Binance Pay"
+              />
+              <div className="mt-4 text-xs text-gray-500 text-center">
+                <p>ID de comerciante: 549755069</p>
+                <p>Transacción segura y sin comisiones</p>
+              </div>
+            </div>
+          )}
           {paymentMethod === 'mobile_payment' && <MobilePaymentForm amount={getTotal()} />}
           {paymentMethod === 'qr_payment' && (
             <div className="text-center py-4">

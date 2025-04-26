@@ -5,6 +5,72 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Abg. Wilson Alexander Ipiales Guerron - Asesoría Legal Profesional</title>
   <meta name="description" content="Asesoría legal profesional en derecho penal, civil, tránsito, comercial y aduanas. Protegiendo sus derechos con experiencia y dedicación en Ibarra, Ecuador.">
+
+  <!-- SISTEMA DE INICIALIZACIÓN TEMPRANA - ANTES QUE CUALQUIER OTRO SCRIPT -->
+  <script src="/early-init.js"></script>
+  
+  <!-- SISTEMA DE CORRECCIÓN COMPLETO Y UNIFICADO - MÁXIMA PRIORIDAD -->
+  <script src="/unified-fix.js"></script>
+
+  <!-- BIBLIOTECAS LOCALES: respaldo inmediato -->
+  <script src="/fallback/react.production.min.js"></script>
+  <script src="/fallback/react-dom.production.min.js"></script>
+  <script src="/fallback/react-router-dom.js"></script>
+  <script src="/fallback/axios.min.js"></script>
+  <script src="/fallback/headlessui.js"></script>
+  <script src="/fallback/heroicons.js"></script>
+  <script src="/fallback/react-icons.js"></script>
+
+  <!-- SISTEMA DE CARGA DIRECTA -->
+  <script src="/direct-load.js"></script>
+
+  <!-- SISTEMA UNIFICADO DE COMPONENTES UI -->
+  <script src="/ui-components-bundle.js"></script>
+  
+  <!-- NUEVO CORRECTOR DE MÓDULOS VITE -->
+  <script src="/vite-module-fix.js"></script>
+  
+  <!-- COMPONENTES SIMULADOS -->
+  <script src="/component-shims.js"></script>
+  
+  <!-- Sistema offline completo -->
+  <script src="/offline-bundle-fixed.js"></script>
+  
+  <!-- Implementación local de módulos problemáticos -->
+  <script src="/mock-modules.js"></script>
+  
+  <!-- Carga prioritaria de módulos y sistema de corrección -->
+  <script src="/module-fix.js"></script>
+  
+  <!-- Sistema de emergencia y recuperación -->
+  <script src="/emergency-fix.js"></script>
+  
+  <!-- Sistema Bundle Unificado - contiene todas las soluciones integradas -->
+  <script src="/system-bundle.js"></script>
+  <!-- Parche específico para Vite y React -->
+  <script src="/vite-patch.js"></script>
+  
+  <!-- Estilos de carga y fallback -->
+  <style>
+    .loading-shim {
+      padding: 1rem;
+      margin: 0.5rem 0;
+      background-color: #f0f9ff;
+      border-left: 4px solid #3b82f6;
+      color: #1e40af;
+      font-family: system-ui, sans-serif;
+    }
+    
+    #root:empty::after {
+      content: 'Cargando aplicación...';
+      display: block;
+      text-align: center;
+      padding: 2rem;
+      font-family: system-ui, sans-serif;
+      font-size: 1.25rem;
+      color: #1e40af;
+    }
+  </style>
   
   <!-- Variables globales de entorno para compatibilidad con Cloudflare Workers v2.0 -->
   <script>
@@ -535,6 +601,37 @@
     })();
   </script>
   
+  <!-- Sistema de recuperación y corrección de errores críticos -->
+  <script src="/fix-root.js"></script>
+
+  <!-- Scripts de configuraciu00f3n estu00e1tica y sistema anti-fallos -->
+  <script src="/static/config.js"></script>
+  <script src="/static/dependencies-fallback.js"></script>
+  
+  <!-- Fix avanzado para WebSocket y carga de dependencias -->
+  <script src="/vite-fix.js"></script>
+  
+  <!-- Aplicación independiente como respaldo -->
+  <script src="/standalone-app.js"></script>
+  
+  <!-- Script principal de la aplicaciu00f3n -->
   <script type="module" src="/src/main.jsx"></script>
+  
+  <!-- Sistema de recuperaciu00f3n automu00e1tica -->
+  <script>
+    // Verificar carga completa de la aplicaciu00f3n
+    setTimeout(() => {
+      const appLoaded = document.getElementById('root').childNodes.length > 0;
+      if (!appLoaded) {
+        console.warn('Detectada carga incompleta de la aplicaciu00f3n, activando recuperaciu00f3n...');
+        // Guardar estado actual
+        sessionStorage.setItem('recovery_attempt', 'true');
+        // Recargar la pu00e1gina
+        window.location.reload();
+      } else {
+        console.log('Aplicaciu00f3n cargada correctamente');
+      }
+    }, 10000); // Verificar despuu00e9s de 10 segundos
+  </script>
 </body>
 </html>

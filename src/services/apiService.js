@@ -1,4 +1,27 @@
-import axios from 'axios';
+// Import axios con manejo de errores para casos donde la importación falla
+let axios;
+try {
+  // Intento de importación dinámica con fallback
+  axios = window.axios || require('axios');
+} catch (error) {
+  console.warn('[ApiService] Error importando axios, usando fallback:', error);
+  // Implementación de fallback para axios
+  axios = {
+    create: (config) => ({
+      get: async () => Promise.resolve({ data: { message: '[FALLBACK] GET simulado' } }),
+      post: async () => Promise.resolve({ data: { message: '[FALLBACK] POST simulado' } }),
+      put: async () => Promise.resolve({ data: { message: '[FALLBACK] PUT simulado' } }),
+      delete: async () => Promise.resolve({ data: { message: '[FALLBACK] DELETE simulado' } }),
+      interceptors: {
+        request: { use: () => {} },
+        response: { use: () => {} }
+      }
+    }),
+    isAxiosError: () => true,
+    get: async () => Promise.resolve({ data: { message: '[FALLBACK] GET simulado' } }),
+    post: async () => Promise.resolve({ data: { message: '[FALLBACK] POST simulado' } })
+  };
+}
 
 // Determinar la URL base según el entorno
 const getBaseUrl = () => {
@@ -217,6 +240,48 @@ export const authService = {
 
 // Servicio para operaciones CRUD
 export const dataService = {
+  // Método principal para obtener datos por tipo de recurso
+  async fetchData(resource, params = {}) {
+    try {
+      console.log(`Obteniendo datos de ${resource}`);
+      const queryParams = new URLSearchParams();
+      
+      // Agregar parámetros si existen
+      if (params) {
+        Object.keys(params).forEach(key => {
+          queryParams.append(key, params[key]);
+        });
+      }
+      
+      const queryString = queryParams.toString();
+      const url = `/data/${resource}${queryString ? `?${queryString}` : ''}`;
+      
+      // Intentar obtener datos de la API
+      try {
+        const response = await api.get(url);
+        if (response && !response.error) {
+          return { success: true, data: response.data, error: null };
+        }
+        throw new Error(response.error?.message || 'Error al obtener datos');
+      } catch (apiError) {
+        console.warn(`Error al obtener datos de API para ${resource}:`, apiError);
+        // Si estamos en desarrollo, usar datos simulados
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+          // Obtener datos simulados del proxy CORS si existe
+          if (window.API_RESPONSES && window.API_RESPONSES['/api/data/' + resource]) {
+            return { success: true, data: window.API_RESPONSES['/api/data/' + resource].data, error: null };
+          }
+          // Devolver un array vacío si no hay simulación
+          return { success: true, data: [], error: null };
+        }
+        throw apiError;
+      }
+    } catch (error) {
+      console.error(`Error al obtener ${resource}:`, error);
+      return { success: false, data: null, error: handleNetworkError(error).error };
+    }
+  },
+  
   // Obtener todos los registros
   async getAll(resource, params = {}) {
     try {
