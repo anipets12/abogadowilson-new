@@ -18,14 +18,37 @@
     'framer-motion'
   ];
   
-  // Mapeo de mu00f3dulos a sus versiones CDN
+  // Mapeo de múltiples CDNs para cada módulo (para respaldo)
   const CDN_MODULES = {
-    '@headlessui/react': 'https://cdn.jsdelivr.net/npm/@headlessui/react@1.7.17/dist/headlessui.umd.min.js',
-    'react-icons': 'https://cdn.jsdelivr.net/npm/react-icons@4.11.0/index.js',
-    '@heroicons/react': 'https://cdn.jsdelivr.net/npm/@heroicons/react@2.0.18/dist/index.min.js',
-    'framer-motion': 'https://cdn.jsdelivr.net/npm/framer-motion@10.16.4/dist/framer-motion.min.js',
-    'axios': 'https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js'
+    '@headlessui/react': [
+      'https://esm.sh/@headlessui/react@1.7.17',
+      'https://cdn.skypack.dev/@headlessui/react@1.7.17',
+      'https://unpkg.com/@headlessui/react@1.7.17/dist/headlessui.umd.js'
+    ],
+    'react-icons': [
+      'https://esm.sh/react-icons@4.11.0',
+      'https://cdn.skypack.dev/react-icons@4.11.0',
+      'https://unpkg.com/react-icons@4.11.0/index.js'
+    ],
+    '@heroicons/react': [
+      'https://esm.sh/@heroicons/react@2.0.18',
+      'https://cdn.skypack.dev/@heroicons/react@2.0.18',
+      'https://unpkg.com/@heroicons/react@2.0.18/dist/index.js'
+    ],
+    'framer-motion': [
+      'https://esm.sh/framer-motion@10.16.4',
+      'https://cdn.skypack.dev/framer-motion@10.16.4',
+      'https://unpkg.com/framer-motion@10.16.4/dist/framer-motion.js'
+    ],
+    'axios': [
+      'https://esm.sh/axios@1.6.2',
+      'https://cdn.skypack.dev/axios@1.6.2',
+      'https://unpkg.com/axios@1.6.2/dist/axios.min.js'
+    ]
   };
+  
+  // Seguimiento de intentos de CDN
+  const CDN_ATTEMPTS = {};
   
   // Monitorear errores de carga de mu00f3dulos
   function monitorModuleErrors() {

@@ -494,6 +494,71 @@
       window.__OFFLINE_BUNDLE__.errors.push(error);
     }
   }
+  // Variable para controlar si la app offline ya se ha renderizado
+  let offlineRendered = false;
+
+  // Componente principal offline
+  function OfflineApp() {
+    return {
+      type: 'div',
+      props: { className: 'offline-app-container' },
+      children: [
+        {
+          type: 'header',
+          props: { className: 'offline-app-header' },
+          children: [
+            {
+              type: 'h1',
+              props: {},
+              children: ['Abogado Wilson - Asesoría Legal']
+            }
+          ]
+        },
+        {
+          type: 'main',
+          props: { className: 'offline-app-main' },
+          children: [
+            {
+              type: 'div',
+              props: { className: 'offline-app-content' },
+              children: [
+                {
+                  type: 'h2',
+                  props: {},
+                  children: ['Sitio en mantenimiento']
+                },
+                {
+                  type: 'p',
+                  props: {},
+                  children: ['Estamos realizando mejoras en nuestro sitio web. Por favor, intente nuevamente en unos minutos.']
+                },
+                {
+                  type: 'button',
+                  props: { 
+                    className: 'offline-app-button',
+                    onClick: function() { window.location.reload(); } 
+                  },
+                  children: ['Recargar página']
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    };
+  }
+
+  // Función pública para renderizar la aplicación offline
+  function renderOfflineApp(rootElement) {
+    if (offlineRendered) {
+      console.log('[OfflineBundle] La aplicación offline ya está renderizada');
+      return true;
+    }
+    return internalRenderOfflineApp(rootElement);
+  }
+  
+  // Hacer renderOfflineApp disponible globalmente
+  window.renderOfflineApp = renderOfflineApp;
   
   // Manejo de errores global
   window.addEventListener('error', function(event) {
