@@ -76,44 +76,133 @@
     }, true);
   }
   
-  // Precargar mu00f3dulos problemu00e1ticos conocidos
+  // Precargar módulos problemáticos conocidos de forma asincrónica
   function preloadProblematicModules() {
-    console.log('[ModuleFix] Precargando mu00f3dulos con problemas conocidos...');
+    console.log('[ModuleFix] Precargando módulos con problemas conocidos...');
     
-    // Para cada base de mu00f3dulo (react-icons, headlessui, etc)
+    // Array de promesas de carga
+    const loadPromises = [];
+    
+    // Para cada base de módulo (react-icons, headlessui, etc)
     Object.keys(CDN_MODULES).forEach(baseModuleName => {
-      loadModuleFromCDN(baseModuleName, CDN_MODULES[baseModuleName]);
+      loadPromises.push(
+        loadModuleFromCDN(baseModuleName, CDN_MODULES[baseModuleName])
+          .catch(error => {
+            console.error(`[ModuleFix] Error al precargar ${baseModuleName}:`, error);
+            return false; // No detener la carga por un error
+          })
+      );
+    });
+    
+    // Devolver promesa que se resuelve cuando todos los módulos están cargados
+    return Promise.all(loadPromises).then(() => {
+      console.log('[ModuleFix] Todos los módulos precargados');
     });
   }
   
-  // Cargar un mu00f3dulo desde CDN
-  function loadModuleFromCDN(moduleName, cdnUrl) {
-    // Evitar cargar el mismo mu00f3dulo mu00faltiples veces
+  // Cargar un módulo desde CDN con sistema de reintentos
+  function loadModuleFromCDN(moduleName, cdnUrls) {
+    // Evitar cargar el mismo módulo múltiples veces
     if (window[`__${moduleName.replace(/[@\/\-]/g, '_')}__loaded`]) {
-      console.log(`[ModuleFix] Mu00f3dulo ${moduleName} ya cargado desde CDN`);
-      return;
+      console.log(`[ModuleFix] Módulo ${moduleName} ya cargado desde CDN`);
+      return Promise.resolve(true);
     }
     
-    console.log(`[ModuleFix] Cargando ${moduleName} desde ${cdnUrl}...`);
+    // Inicializar contador de intentos para este módulo si no existe
+    if (!CDN_ATTEMPTS[moduleName]) {
+      CDN_ATTEMPTS[moduleName] = 0;
+    }
     
-    const script = document.createElement('script');
-    script.src = cdnUrl;
-    script.async = true;
-    script.crossOrigin = 'anonymous';
+    // Obtener la URL adecuada para este intento
+    let cdnUrl;
+    if (Array.isArray(cdnUrls)) {
+      const currentAttempt = CDN_ATTEMPTS[moduleName] % cdnUrls.length;
+      cdnUrl = cdnUrls[currentAttempt];
+      CDN_ATTEMPTS[moduleName]++;
+    } else {
+      cdnUrl = cdnUrls; // Si es una sola URL
+    }
     
-    script.onload = () => {
-      console.log(`[ModuleFix] Mu00f3dulo ${moduleName} cargado correctamente desde CDN`);
-      window[`__${moduleName.replace(/[@\/\-]/g, '_')}__loaded`] = true;
+    console.log(`[ModuleFix] Cargando ${moduleName} desde ${cdnUrl}... (Intento ${CDN_ATTEMPTS[moduleName]})`);
+    
+    return new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = cdnUrl;
+      script.async = true;
+      script.crossOrigin = 'anonymous';
       
-      // Manejar casos especiales
-      handleSpecialCases(moduleName);
-    };
+      // Establecer timeout para detectar cargas lentas
+      const timeoutId = setTimeout(() => {
+        console.warn(`[ModuleFix] Timeout al cargar ${moduleName} desde ${cdnUrl}`);
+        // No rechazar la promesa, solo continuar con el siguiente CDN
+        tryNextCDN();
+      }, 5000); // 5 segundos de timeout
+      
+      script.onload = () => {
+        clearTimeout(timeoutId);
+        console.log(`[ModuleFix] Módulo ${moduleName} cargado correctamente desde ${cdnUrl}`);
+        window[`__${moduleName.replace(/[@\/\-]/g, '_')}__loaded`] = true;
+        
+        // Manejar casos especiales
+        handleSpecialCases(moduleName);
+        resolve(true);
+      };
+      
+      script.onerror = (error) => {
+        clearTimeout(timeoutId);
+        console.error(`[ModuleFix] Error al cargar ${moduleName} desde ${cdnUrl}:`, error);
+        tryNextCDN();
+      };
+      
+      document.head.appendChild(script);
+      
+      // Función para intentar con el siguiente CDN o cargar desde fallback local
+      function tryNextCDN() {
+        // Si hay más CDNs disponibles, intentar con el siguiente
+        if (Array.isArray(cdnUrls) && CDN_ATTEMPTS[moduleName] < cdnUrls.length * 2) {
+          loadModuleFromCDN(moduleName, cdnUrls).then(resolve).catch(reject);
+        } else {
+          console.warn(`[ModuleFix] Todos los CDNs fallaron para ${moduleName}, cargando versión local`);
+          loadLocalFallback(moduleName).then(resolve).catch(reject);
+        }
+      }
+    });
+  }
+  
+  // Cargar módulo desde fallback local
+  function loadLocalFallback(moduleName) {
+    const moduleKey = moduleName.replace(/[@\/]/g, '_').toLowerCase();
+    const fallbackPath = `/fallback/${moduleKey}.js`;
     
-    script.onerror = (error) => {
-      console.error(`[ModuleFix] Error al cargar ${moduleName} desde CDN:`, error);
-    };
+    console.log(`[ModuleFix] Cargando fallback local para ${moduleName} desde ${fallbackPath}`);
     
-    document.head.appendChild(script);
+    return new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = fallbackPath;
+      script.async = true;
+      
+      script.onload = () => {
+        console.log(`[ModuleFix] Fallback local para ${moduleName} cargado correctamente`);
+        window[`__${moduleName.replace(/[@\/\-]/g, '_')}__loaded`] = true;
+        handleSpecialCases(moduleName);
+        resolve(true);
+      };
+      
+      script.onerror = (error) => {
+        console.error(`[ModuleFix] Error al cargar fallback local para ${moduleName}:`, error);
+        
+        // Último recurso: crear un módulo vacío
+        console.warn(`[ModuleFix] Creando stub mínimo para ${moduleName}`);
+        window[`__${moduleName.replace(/[@\/\-]/g, '_')}__loaded`] = true;
+        window.__cdnModules = window.__cdnModules || {};
+        window.__cdnModules[moduleName] = {};
+        
+        // Resolver de todas formas para no bloquear la aplicación
+        resolve(false);
+      };
+      
+      document.head.appendChild(script);
+    });
   }
   
   // Manejar casos especiales para ciertos mu00f3dulos
@@ -235,18 +324,45 @@
     return originalImport.apply(this, arguments);
   };
   
-  // Inicializar sistema
+  // Inicializar sistema de forma robusta y asincru00f3nica
   function initialize() {
     // Crear contenedor para mu00f3dulos
     window.__cdnModules = window.__cdnModules || {};
     
+    // Crear registro del estado del sistema
+    window.__MODULE_SYSTEM_STATE__ = {
+      initialized: false,
+      loadAttempts: 0,
+      loadedModules: {},
+      errors: []
+    };
+    
     // Monitorear errores
     monitorModuleErrors();
     
-    // Precargar mu00f3dulos conocidos
-    preloadProblematicModules();
+    console.log('[ModuleFix] Iniciando carga de mu00f3dulos esenciales...');
     
-    console.log('[ModuleFix] Sistema de carga de mu00f3dulos inicializado correctamente');
+    // Precargar mu00f3dulos conocidos de forma asincru00f3nica
+    preloadProblematicModules()
+      .then(() => {
+        window.__MODULE_SYSTEM_STATE__.initialized = true;
+        console.log('[ModuleFix] Sistema de carga de mu00f3dulos inicializado correctamente');
+        
+        // Evento personalizado para notificar que los mu00f3dulos estu00e1n cargados
+        const event = new CustomEvent('moduleSystemReady', { detail: { success: true } });
+        window.dispatchEvent(event);
+      })
+      .catch(error => {
+        console.error('[ModuleFix] Error en la inicializaciu00f3n del sistema de mu00f3dulos:', error);
+        window.__MODULE_SYSTEM_STATE__.errors.push(error);
+        
+        // Aún así, marcar como inicializado pero con errores
+        window.__MODULE_SYSTEM_STATE__.initialized = 'withErrors';
+        
+        // Evento personalizado para notificar error
+        const event = new CustomEvent('moduleSystemReady', { detail: { success: false, error } });
+        window.dispatchEvent(event);
+      });
   }
   
   // Iniciar inmediatamente

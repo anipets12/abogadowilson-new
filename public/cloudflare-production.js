@@ -12,6 +12,14 @@
   let renderAttempts = 0;
   const MAX_RENDER_ATTEMPTS = 2;
   
+  // Recursos críticos que deben cargarse correctamente
+  const CRITICAL_RESOURCES = [
+    '/favicon.ico',
+    '/favicon.svg',
+    '/manifest.json',
+    '/icons/favicon-backup.svg'
+  ];
+  
   // Definir la aplicaciu00f3n de respaldo garantizada
   function renderBackupApp() {
     console.log('[CloudflareProduction] Renderizando aplicaciu00f3n de respaldo');
@@ -155,9 +163,67 @@
     }, 10000);
   }
   
+  // Manejador de recursos críticos
+  function handleCriticalResource(url) {
+    if (url.includes('favicon.ico') || url.includes('favicon.svg') || url.includes('icon')) {
+      console.log(`[CloudflareProduction] Manejando recurso crítico: ${url}`);
+      
+      // Crear un favicon de respaldo en base64 si es necesario
+      const faviconBase64 = 'AAABAAEAEBAAAAEAIABoBAAAFgAAACgAAAAQAAAAIAAAAAEAIAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAEC7u7uB+7u7gfu7u4H7u7uB+7u7gfu7u4H7u7uB+7u7gfu7u4H7u7uB+7u7gfu7u7Q7u7u0O7u7tDu7u7Q7u7u0O7u7tDu7u7Q7u7u0O7u7tDu7u7Q7u7u0O7u7tDu7u7Q7u7u0O7u7tDu7u7Q7u7u/+7u7v/u7u7/7u7u/+7u7v/u7u7/7u7u/+7u7v/u7u7/7u7u/+7u7v/u7u7/7u7u/+7u7v/u7u7/7u7u/+7u7v/u7u7/7u7u/+7u7v/u7u7/7u7uz+7u7s/u7u7P7u7uz+7u7s/u7u7P7u7uz+7u7s/u7u7P7u7uz+7u7s/u7u7P7u7uz+7u7s/u7u7P7u7u0e7u7k/u7u5M7u7uTO7u7kzu7u5M7u7uTO7u7kzu7u5M7u7uTO7u7kzu7u5M7u7uTO7u7kzu7u5M7u7uTO7u7k/u7u4G7u7uBu7u7gbu7u4G7u7uBu7u7gbu7u4G7u7uBu7u7gbu7u4G7u7uBu7u7gbu7u4G7u7uBu7u7gbu7u4GAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAE=';
+      
+      // Verificar si el navegador soporta fetch
+      if (typeof fetch === 'function') {
+        // Intentar cargar el recurso primero
+        return fetch(url).catch(() => {
+          console.warn(`[CloudflareProduction] Error al cargar ${url}, usando respaldo inline`);
+          
+          // Devolver un respaldo inline
+          if (url.endsWith('.ico')) {
+            return new Response(
+              Uint8Array.from(atob(faviconBase64), c => c.charCodeAt(0)),
+              { headers: { 'Content-Type': 'image/x-icon' } }
+            );
+          } else if (url.endsWith('.svg')) {
+            return new Response(
+              '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">\n' +
+              '  <circle cx="50" cy="50" r="40" fill="#1e40af" />\n' +
+              '  <text x="50" y="60" font-size="40" text-anchor="middle" fill="white">AW</text>\n' +
+              '</svg>',
+              { headers: { 'Content-Type': 'image/svg+xml' } }
+            );
+          }
+        });
+      }
+    }
+    
+    return null;
+  }
+
+  // Interceptar solicitudes de recursos críticos
+  function setupResourceInterceptor() {
+    // Guardar la función fetch original
+    const originalFetch = window.fetch;
+    
+    if (typeof originalFetch === 'function') {
+      window.fetch = function(resource, init) {
+        const url = typeof resource === 'string' ? resource : resource.url;
+        
+        // Verificar si es un recurso crítico
+        if (CRITICAL_RESOURCES.some(res => url.includes(res))) {
+          const response = handleCriticalResource(url);
+          if (response) return response;
+        }
+        
+        // Continuar con el fetch normal
+        return originalFetch.call(this, resource, init);
+      };
+    }
+  }
+  
   // Inicializar el sistema de producciu00f3n
   function initialize() {
     setupErrorMonitor();
+    setupResourceInterceptor();
     startAppMonitoring();
     console.log('[CloudflareProduction] Sistema de producciu00f3n inicializado');
   }

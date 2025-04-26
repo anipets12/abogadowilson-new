@@ -3,7 +3,22 @@
   "include": [
     "/*"
   ],
-  "exclude": [],
+  "exclude": [
+    "/favicon.ico",
+    "/favicon.svg",
+    "/icons/*",
+    "/images/*",
+    "/assets/*",
+    "/static/*",
+    "/fallback/*",
+    "/*.png",
+    "/*.jpg",
+    "/*.gif",
+    "/*.svg",
+    "/*.ico",
+    "/manifest.json",
+    "/robots.txt"
+  ],
   "routes": [
     {
       "src": "/favicon.ico",
