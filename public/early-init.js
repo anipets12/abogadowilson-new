@@ -49,8 +49,18 @@
             args[0].includes('CORS') || 
             args[0].includes('MIME') ||
             args[0].includes('cdn.jsdelivr') ||
-            args[0].includes('unpkg.com')) {
-          // No mostrar estos errores
+            args[0].includes('unpkg.com') ||
+            args[0].includes('Minified React error #31')) {
+          // Registramos error React #31 pero con nivel inferior
+          if (args[0].includes('Minified React error #31')) {
+            console.warn('[EarlyInit] Interceptado error React #31 (renderizado mu00faltiple)');
+            
+            // Si tenemos el coordinador, notificarle del error
+            if (window.__RENDER_COORDINATOR__) {
+              console.log('[EarlyInit] Notificando a coordinador de renderizado');
+              window.__RENDER_COORDINATOR__.cleanRoot();
+            }
+          }
           return;
         }
       }

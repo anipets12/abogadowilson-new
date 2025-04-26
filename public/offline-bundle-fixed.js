@@ -395,27 +395,46 @@
     return toast;
   }
   
-  // Renderizar la aplicación offline
-  function renderOfflineApp() {
-    // Obtener el elemento root o crearlo si no existe
-    let rootElement = document.getElementById('root');
+  // Renderizado interno de la aplicación offline
+  function internalRenderOfflineApp(rootElement) {
     if (!rootElement) {
-      console.log('[OfflineBundle] Creando elemento root');
-      rootElement = document.createElement('div');
-      rootElement.id = 'root';
-      document.body.appendChild(rootElement);
+      rootElement = document.getElementById('root');
+      if (!rootElement && document.body) {
+        rootElement = document.createElement('div');
+        rootElement.id = 'root';
+        document.body.appendChild(rootElement);
+      }
+    }
+    
+    // Asegurarnos de que el elemento esté vacío antes de renderizar
+    if (rootElement) {
+      while (rootElement.firstChild) {
+        rootElement.removeChild(rootElement.firstChild);
+      }
+    } else {
+      console.error('[OfflineBundle] No se pudo encontrar/crear el elemento root');
+      return false;
     }
     
     // Usar ReactDOM para renderizar
     const ReactDOM = window.ReactDOM || createReactDOMImplementation();
+    
     try {
       if (typeof ReactDOM.createRoot === 'function') {
+        // React 18
         const root = ReactDOM.createRoot(rootElement);
-        root.render(document.createElement('div'));
+        root.render(React.createElement(OfflineApp));
+      } else if (typeof ReactDOM.render === 'function') {
+        // React 16/17
+        ReactDOM.render(React.createElement(OfflineApp), rootElement);
       } else {
-        ReactDOM.render(document.createElement('div'), rootElement);
+        console.error('[OfflineBundle] No se encontró método de renderizado en ReactDOM');
+        return false;
       }
+      
+      offlineRendered = true;
       console.log('[OfflineBundle] Aplicación offline renderizada correctamente');
+      return true;
     } catch (error) {
       console.error('[OfflineBundle] Error al renderizar aplicación offline:', error);
       // Renderizado manual como respaldo
