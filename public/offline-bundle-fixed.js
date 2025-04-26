@@ -497,54 +497,91 @@
   // Variable para controlar si la app offline ya se ha renderizado
   let offlineRendered = false;
 
-  // Componente principal offline
+  // Componente principal offline con compatibilidad completa para React
   function OfflineApp() {
-    return {
-      type: 'div',
-      props: { className: 'offline-app-container' },
-      children: [
-        {
-          type: 'header',
-          props: { className: 'offline-app-header' },
-          children: [
-            {
-              type: 'h1',
-              props: {},
-              children: ['Abogado Wilson - Asesoría Legal']
-            }
-          ]
-        },
-        {
-          type: 'main',
-          props: { className: 'offline-app-main' },
-          children: [
-            {
-              type: 'div',
-              props: { className: 'offline-app-content' },
-              children: [
-                {
-                  type: 'h2',
-                  props: {},
-                  children: ['Sitio en mantenimiento']
-                },
-                {
-                  type: 'p',
-                  props: {},
-                  children: ['Estamos realizando mejoras en nuestro sitio web. Por favor, intente nuevamente en unos minutos.']
-                },
-                {
-                  type: 'button',
-                  props: { 
-                    className: 'offline-app-button',
-                    onClick: function() { window.location.reload(); } 
-                  },
-                  children: ['Recargar página']
+    // React 15/16/17/18 compatible 
+    if (typeof React !== 'undefined' && React.createElement) {
+      // Crear utilizando React.createElement estándar
+      return React.createElement(
+        'div',
+        { className: 'offline-app-container', style: { maxWidth: '800px', margin: '0 auto', padding: '2rem', fontFamily: 'system-ui, sans-serif' } },
+        React.createElement(
+          'header',
+          { className: 'offline-app-header', style: { marginBottom: '2rem', borderBottom: '3px solid #1e40af', paddingBottom: '1rem' } },
+          React.createElement('h1', { style: { color: '#1e40af', fontSize: '2.25rem' } }, 'Abogado Wilson - Asesoría Legal')
+        ),
+        React.createElement(
+          'main',
+          { className: 'offline-app-main' },
+          React.createElement(
+            'div',
+            { className: 'offline-app-content', style: { backgroundColor: '#f8fafc', padding: '1.5rem', borderRadius: '0.5rem', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' } },
+            React.createElement('h2', { style: { color: '#1e40af', marginBottom: '1rem' } }, 'Sitio en mantenimiento'),
+            React.createElement('p', { style: { marginBottom: '2rem' } }, 'Estamos realizando mejoras en nuestro sitio web. Por favor, intente nuevamente en unos minutos.'),
+            React.createElement(
+              'button',
+              { 
+                onClick: function() { window.location.reload(); },
+                style: {
+                  backgroundColor: '#1e40af',
+                  color: 'white',
+                  padding: '0.75rem 1.5rem',
+                  border: 'none',
+                  borderRadius: '0.375rem',
+                  cursor: 'pointer',
+                  fontWeight: '500'
                 }
-              ]
-            }
-          ]
-        }
-      ]
+              },
+              'Recargar página'
+            )
+          )
+        ),
+        React.createElement(
+          'footer',
+          { style: { marginTop: '2rem', textAlign: 'center', color: '#6b7280', fontSize: '0.875rem' } },
+          '© ' + new Date().getFullYear() + ' Abogado Wilson Alexander Ipiales Guerron. Todos los derechos reservados.'
+        )
+      );
+    } 
+    
+    // Fallback para implementaciones no estándar
+    return {
+      $$typeof: Symbol.for('react.element'),
+      type: 'div',
+      props: { 
+        className: 'offline-app-container',
+        style: { maxWidth: '800px', margin: '0 auto', padding: '2rem', fontFamily: 'system-ui, sans-serif' },
+        children: [
+          {
+            $$typeof: Symbol.for('react.element'),
+            type: 'h1',
+            props: { style: { color: '#1e40af' } },
+            children: 'Sitio en mantenimiento'
+          },
+          {
+            $$typeof: Symbol.for('react.element'),
+            type: 'p',
+            props: {},
+            children: 'Estamos realizando mejoras en nuestro sitio web. Por favor, intente nuevamente en unos minutos.'
+          },
+          {
+            $$typeof: Symbol.for('react.element'),
+            type: 'button',
+            props: { 
+              onClick: function() { window.location.reload(); },
+              style: {
+                backgroundColor: '#1e40af',
+                color: 'white',
+                padding: '0.75rem 1.25rem',
+                border: 'none',
+                borderRadius: '0.25rem',
+                cursor: 'pointer'
+              }
+            },
+            children: 'Recargar página'
+          }
+        ]
+      }
     };
   }
 

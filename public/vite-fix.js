@@ -97,6 +97,150 @@
             this.readyState = this._socket.readyState;
             if (this.onopen) this.onopen(event);
             this._dispatch('open', event);
+            
+            // Configurar WebSocket para desarrollo con manejo de errores mejorado
+            function setupWebSocket() {
+              // Si estamos en producción o hay una bandera para deshabilitar WebSocket, salir
+              if (window.__ENV__ && window.__ENV__.PROD === true || localStorage.getItem('DISABLE_VITE_WS') === 'true') {
+                console.log('[ViteFix] WebSocket desactivado en producción o manualmente');
+                return;
+              }
+              
+              // Si no hay soporte para WebSocket en el navegador, salir
+              if (!window.WebSocket) {
+                console.warn('[ViteFix] WebSocket no disponible en este navegador');
+                return;
+              }
+              
+              let wsInstance = null;
+              let reconnectTimer = null;
+              const MAX_RECONNECTS = 1; // Reducir el máximo de reconexiones para evitar bucles
+              let reconnectCount = 0;
+              let wsConnected = false;
+              
+              function connect() {
+                try {
+                  // Cerrar cualquier conexión existente
+                  if (wsInstance) {
+                    try {
+                      wsInstance.close();
+                    } catch (e) {
+                      // Ignorar errores al cerrar
+                    }
+                  }
+                  
+                  // URL base del servidor actual
+                  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                  const host = window.location.hostname + (window.location.port ? ':' + window.location.port : '');
+                  const wsUrl = `${protocol}//${host}?vite&token=${generateToken()}`;
+                  
+                  console.log(`[ViteFix] Conectando WebSocket a ${wsUrl}...`);
+                  
+                  wsInstance = new WebSocket(wsUrl);
+                  
+                  // Establecer un timeout para detectar si la conexión está tomando demasiado tiempo
+                  const connectionTimeout = setTimeout(() => {
+                    if (!wsConnected) {
+                      console.warn('[ViteFix] Tiempo de espera para conexión WebSocket agotado');
+                      wsInstance.close();
+                      // Marcar como inutilizable para esta sesión
+                      localStorage.setItem('DISABLE_VITE_WS', 'true');
+                    }
+                  }, 5000);
+                  
+                  wsInstance.onopen = function() {
+                    console.log('[ViteFix] WebSocket conectado exitosamente a ' + wsUrl);
+                    wsConnected = true;
+                    clearTimeout(connectionTimeout);
+                    reconnectCount = 0; // Restablecer contador de reconexiones
+                    
+                    // Informar que el sistema de desarrollo está activo
+                    dispatchCustomEvent('vite-connected', { success: true });
+                  };
+                  
+                  wsInstance.onclose = function(event) {
+                    console.log('[ViteFix] WebSocket cerrado: ' + event.code + ' - ' + (event.reason || 'Sin motivo'));
+                    wsConnected = false;
+                    clearTimeout(connectionTimeout);
+                    
+                    // Si estaba conectado anteriormente, establecer flags para indicar desconexión
+                    if (wsConnected) {
+                      dispatchCustomEvent('vite-disconnected', { code: event.code });
+                    }
+                    
+                    // Si la conexión fue rechazada por el servidor (403), no reconectar
+                    if (event.code === 1003 || event.code === 1008 || event.code === 1011) {
+                      console.warn('[ViteFix] La conexión WebSocket fue rechazada por el servidor');
+                      localStorage.setItem('DISABLE_VITE_WS', 'true');
+                      return;
+                    }
+                    
+                    // Intentar reconectar solo si es un cierre anormal y no hemos excedido los reintentos
+                    if (reconnectCount < MAX_RECONNECTS) {
+                      reconnectCount++;
+                      console.log(`[ViteFix] Reintentando conexión WebSocket (${reconnectCount}/${MAX_RECONNECTS})...`);
+                      
+                      clearTimeout(reconnectTimer);
+                      reconnectTimer = setTimeout(connect, 3000 * reconnectCount); // Espera progresiva
+                    } else {
+                      console.warn('[ViteFix] Máximo de reconexiones alcanzado, WebSocket desactivado');
+                      localStorage.setItem('DISABLE_VITE_WS', 'true');
+                    }
+                  };
+                  
+                  wsInstance.onerror = function(error) {
+                    console.error('[ViteFix] Error en WebSocket:', error);
+                    // No intentar reconectar aquí, onclose se llamará después de onerror
+                  };
+                  
+                  wsInstance.onmessage = function(event) {
+                    // Ignorar mensajes ping/pong y similares
+                    if (event.data) {
+                      let updateDetected = false;
+                      
+                      try {
+                        const parsedData = JSON.parse(event.data);
+                        if (parsedData && parsedData.type) {
+                          if (parsedData.type === 'update') {
+                            console.log('[ViteFix] Actualización detectada, recargando página...');
+                            updateDetected = true;
+                          } else if (parsedData.type === 'full-reload') {
+                            console.log('[ViteFix] Recarga completa solicitada por Vite');
+                            updateDetected = true;                  
+                          }
+                        }
+                      } catch (e) {
+                        // No es JSON o no nos interesa este mensaje
+                      }
+                      
+                      if (updateDetected) {
+                        // Notificar y luego recargar con pequeño retraso
+                        dispatchCustomEvent('vite-update', { reload: true });
+                        setTimeout(() => {
+                          window.location.reload();
+                        }, 300);
+                      }
+                    }
+                  };
+                } catch (error) {
+                  console.warn('[ViteFix] Error al inicializar WebSocket:', error);
+                  localStorage.setItem('DISABLE_VITE_WS', 'true');
+                }
+              }
+              
+              function generateToken() {
+                return Math.random().toString(36).substring(2, 10);
+              }
+              
+              function dispatchCustomEvent(name, detail) {
+                window.dispatchEvent(new CustomEvent(name, { detail }));
+              }
+              
+              // Iniciar conexión
+              connect();
+            }
+            
+            setupWebSocket();
           };
           
           this._socket.onclose = (event) => {
@@ -358,10 +502,12 @@
   if (!window.__VITE_FIX_STATE__.importMapInstalled && !document.querySelector('script[type="importmap"]')) {
     const importMap = {
       imports: {
-        '@headlessui/react': 'https://cdn.jsdelivr.net/npm/@headlessui/react@1.7.17/dist/headlessui.esm.js',
-        'react-icons/fa': 'https://cdn.jsdelivr.net/npm/react-icons@4.11.0/fa/index.esm.js',
-        'framer-motion': 'https://cdn.jsdelivr.net/npm/framer-motion@10.16.4/dist/framer-motion.js',
-        'axios': 'https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js'
+        '@headlessui/react': 'https://unpkg.com/@headlessui/react@1.7.17/dist/headlessui.umd.js',
+        '@heroicons/react': 'https://unpkg.com/@heroicons/react@2.0.18/dist/index.umd.min.js',
+        'react-icons': 'https://unpkg.com/react-icons@4.11.0/umd/react-icons.min.js',
+        'react-icons/fa': '/fallback/react-icons-fa.js',
+        'framer-motion': 'https://unpkg.com/framer-motion@10.16.4/dist/framer-motion.umd.min.js',
+        'axios': 'https://unpkg.com/axios@1.6.2/dist/axios.min.js'
       }
     };
     

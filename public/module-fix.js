@@ -15,35 +15,50 @@
     '@headlessui/react',
     '@heroicons/react/24/outline',
     '@heroicons/react/24/solid',
-    'framer-motion'
   ];
   
-  // Mapeo de múltiples CDNs para cada módulo (para respaldo)
+  // CDN para cargar módulos:
+  const CDN_URLS = {
+    unpkg: 'https://unpkg.com',        // Primario - soporta UMD bien
+    jsdelivr: 'https://cdn.jsdelivr.net/npm',  // Secundario - cdn alternativo
+    cdnjs: 'https://cdnjs.cloudflare.com/ajax/libs'  // Terciario - otra alternativa
+  };
+
+  // Lista de módulos con sus versiones UMD
   const CDN_MODULES = {
-    '@headlessui/react': [
-      'https://esm.sh/@headlessui/react@1.7.17',
-      'https://cdn.skypack.dev/@headlessui/react@1.7.17',
-      'https://unpkg.com/@headlessui/react@1.7.17/dist/headlessui.umd.js'
-    ],
-    'react-icons': [
-      'https://esm.sh/react-icons@4.11.0',
-      'https://cdn.skypack.dev/react-icons@4.11.0',
-      'https://unpkg.com/react-icons@4.11.0/index.js'
-    ],
+    '@headlessui/react': { url: '@headlessui/react@1.7.17/dist/headlessui.umd.js' },
+    '@heroicons/react': { url: '@heroicons/react@2.0.18/dist/index.umd.min.js' },
+    'react-icons': { url: 'react-icons@4.11.0/umd/react-icons.min.js' },
+    'framer-motion': { url: 'framer-motion@10.16.4/dist/framer-motion.umd.min.js' },
+    'axios': { url: 'axios@1.6.2/dist/axios.min.js' }
+  };
+  
+  // Mapeo de nombres de CDN a mapeo de módulos específicos por proveedor
+  const CDN_SPECIFIC_URLS = {
+    cdnjs: {
+      '@headlessui/react': 'headlessui/1.7.17/headlessui.umd.min.js',
+      'react-icons': 'react-icons/4.11.0/react-icons.min.js',
+      'framer-motion': 'framer-motion/10.16.4/framer-motion.umd.min.js',
+      'axios': 'axios/1.6.2/axios.min.js'
+    }
+  };
+  
+  // Antigua configuración (referencia)
+  const OLD_CDN_MODULES = {
     '@heroicons/react': [
-      'https://esm.sh/@heroicons/react@2.0.18',
-      'https://cdn.skypack.dev/@heroicons/react@2.0.18',
-      'https://unpkg.com/@heroicons/react@2.0.18/dist/index.js'
+      'https://unpkg.com/@heroicons/react@2.0.18/dist/index.umd.min.js',
+      'https://cdn.jsdelivr.net/npm/@heroicons/react@2.0.18/dist/index.umd.min.js',
+      '/fallback/heroicons.js'
     ],
     'framer-motion': [
-      'https://esm.sh/framer-motion@10.16.4',
-      'https://cdn.skypack.dev/framer-motion@10.16.4',
-      'https://unpkg.com/framer-motion@10.16.4/dist/framer-motion.js'
+      'https://unpkg.com/framer-motion@10.16.4/dist/framer-motion.umd.min.js',
+      'https://cdn.jsdelivr.net/npm/framer-motion@10.16.4/dist/framer-motion.umd.min.js',
+      '/fallback/framer-motion.js'
     ],
     'axios': [
-      'https://esm.sh/axios@1.6.2',
-      'https://cdn.skypack.dev/axios@1.6.2',
-      'https://unpkg.com/axios@1.6.2/dist/axios.min.js'
+      'https://unpkg.com/axios@1.6.2/dist/axios.min.js',
+      'https://cdn.jsdelivr.net/npm/axios@1.6.2/dist/axios.min.js',
+      '/fallback/axios.min.js'
     ]
   };
   
@@ -101,57 +116,74 @@
   }
   
   // Cargar un módulo desde CDN con sistema de reintentos
-  function loadModuleFromCDN(moduleName, cdnUrls) {
+  function loadModuleFromCDN(moduleName, currentCdnIndex = 0) {
     // Evitar cargar el mismo módulo múltiples veces
     if (window[`__${moduleName.replace(/[@\/\-]/g, '_')}__loaded`]) {
       console.log(`[ModuleFix] Módulo ${moduleName} ya cargado desde CDN`);
       return Promise.resolve(true);
     }
     
-    // Inicializar contador de intentos para este módulo si no existe
-    if (!CDN_ATTEMPTS[moduleName]) {
-      CDN_ATTEMPTS[moduleName] = 0;
+    const cdnNames = Object.keys(CDN_URLS);
+    
+    // Si ya intentamos todos los CDNs, usar el fallback local
+    if (currentCdnIndex >= cdnNames.length) {
+      return loadFallbackModule(moduleName);
     }
     
-    // Obtener la URL adecuada para este intento
-    let cdnUrl;
-    if (Array.isArray(cdnUrls)) {
-      const currentAttempt = CDN_ATTEMPTS[moduleName] % cdnUrls.length;
-      cdnUrl = cdnUrls[currentAttempt];
-      CDN_ATTEMPTS[moduleName]++;
+    const cdnName = cdnNames[currentCdnIndex];
+    const cdnBaseUrl = CDN_URLS[cdnName];
+    
+    // Determinar la URL correcta para este CDN
+    let moduleUrl;
+    if (cdnName === 'cdnjs' && CDN_SPECIFIC_URLS.cdnjs && CDN_SPECIFIC_URLS.cdnjs[moduleName]) {
+      // CDNJS tiene una estructura de URL diferente
+      moduleUrl = `${cdnBaseUrl}/${CDN_SPECIFIC_URLS.cdnjs[moduleName]}`;
+    } else if (CDN_MODULES[moduleName]) {
+      // Usar la URL estándar de la configuración de módulos
+      moduleUrl = `${cdnBaseUrl}/${CDN_MODULES[moduleName].url}`;
     } else {
-      cdnUrl = cdnUrls; // Si es una sola URL
+      // Si no tenemos configuración para este módulo, pasar al siguiente CDN
+      console.warn(`[ModuleFix] No hay configuración para ${moduleName} en ${cdnName}`);
+      return loadModuleFromCDN(moduleName, currentCdnIndex + 1);
     }
     
-    console.log(`[ModuleFix] Cargando ${moduleName} desde ${cdnUrl}... (Intento ${CDN_ATTEMPTS[moduleName]})`);
+    console.log(`[ModuleFix] Intentando cargar ${moduleName} desde ${moduleUrl} (CDN: ${cdnName})`);
     
     return new Promise((resolve, reject) => {
       const script = document.createElement('script');
-      script.src = cdnUrl;
+      script.src = moduleUrl;
       script.async = true;
-      script.crossOrigin = 'anonymous';
+      script.crossOrigin = 'anonymous'; // Importante para CORS
+      
+      // Marcar con atributo de datos para identificar
+      script.setAttribute('data-module-name', moduleName);
+      script.setAttribute('data-cdn-source', cdnName);
       
       // Establecer timeout para detectar cargas lentas
       const timeoutId = setTimeout(() => {
-        console.warn(`[ModuleFix] Timeout al cargar ${moduleName} desde ${cdnUrl}`);
-        // No rechazar la promesa, solo continuar con el siguiente CDN
-        tryNextCDN();
+        console.warn(`[ModuleFix] Timeout al cargar ${moduleName} desde ${moduleUrl}`);
+        // Intentar con el siguiente CDN
+        document.head.removeChild(script);
+        loadModuleFromCDN(moduleName, currentCdnIndex + 1)
+          .then(resolve)
+          .catch(reject);
       }, 5000); // 5 segundos de timeout
       
       script.onload = () => {
         clearTimeout(timeoutId);
-        console.log(`[ModuleFix] Módulo ${moduleName} cargado correctamente desde ${cdnUrl}`);
+        console.log(`[ModuleFix] Módulo ${moduleName} cargado exitosamente desde ${cdnName}`);
         window[`__${moduleName.replace(/[@\/\-]/g, '_')}__loaded`] = true;
-        
-        // Manejar casos especiales
-        handleSpecialCases(moduleName);
         resolve(true);
       };
       
-      script.onerror = (error) => {
+      script.onerror = () => {
         clearTimeout(timeoutId);
-        console.error(`[ModuleFix] Error al cargar ${moduleName} desde ${cdnUrl}:`, error);
-        tryNextCDN();
+        console.error(`[ModuleFix] Error al cargar ${moduleName} desde ${moduleUrl}`);
+        // Intentar con el siguiente CDN
+        document.head.removeChild(script);
+        loadModuleFromCDN(moduleName, currentCdnIndex + 1)
+          .then(resolve)
+          .catch(reject);
       };
       
       document.head.appendChild(script);
