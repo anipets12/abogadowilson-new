@@ -142,6 +142,22 @@
       return Promise.resolve(true);
     }
     
+    // Usar URLs absolutas predefinidas para dependencias críticas
+    const DIRECT_URLS = {
+      'axios': 'https://unpkg.com/axios@1.6.2/dist/axios.min.js',
+      'framer-motion': 'https://unpkg.com/framer-motion@10.16.4/dist/framer-motion.umd.min.js',
+      '@headlessui/react': 'https://unpkg.com/@headlessui/react@1.7.17/dist/headlessui.umd.js',
+      '@heroicons/react': 'https://unpkg.com/@heroicons/react@2.0.18/dist/index.umd.min.js',
+      'react-icons': 'https://unpkg.com/react-icons@4.11.0/umd/react-icons.min.js',
+      'react-icons/fa': 'https://unpkg.com/react-icons@4.11.0/fa/index.js'
+    };
+    
+    // Si el módulo tiene una URL directa, usarla sin importar el CDN
+    if (DIRECT_URLS[moduleName]) {
+      console.log(`[ModuleFix] Usando URL directa para ${moduleName}: ${DIRECT_URLS[moduleName]}`);
+      return loadModuleDirectly(moduleName, DIRECT_URLS[moduleName]);
+    }
+    
     const cdnNames = Object.keys(CDN_URLS);
     
     // Si ya intentamos todos los CDNs, usar el fallback local
@@ -162,8 +178,8 @@
     }
     
     // Corregir el problema de URL con undefined
-    if (!moduleUrl) {
-      console.error(`[ModuleFix] Error: URL no definida para ${moduleName} en ${cdnName}`);
+    if (!moduleUrl || moduleUrl.includes('undefined')) {
+      console.error(`[ModuleFix] Error: URL incorrecta para ${moduleName} en ${cdnName}: ${moduleUrl}`);
       return loadModuleFromCDN(moduleName, currentCdnIndex + 1);
     }
     
@@ -226,6 +242,43 @@
     return window.location.origin + '/fallback/' + moduleName.replace(/[@\/]/g, '-').toLowerCase() + '.js';
   }
 
+  // Cargar módulo directamente desde una URL absoluta
+  function loadModuleDirectly(moduleName, url) {
+    console.log(`[ModuleFix] Cargando ${moduleName} directamente desde ${url}`);
+    
+    return new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = url;
+      script.async = true;
+      script.crossOrigin = 'anonymous';
+      
+      // Establecer timeout para detectar cargas lentas
+      const timeoutId = setTimeout(() => {
+        console.warn(`[ModuleFix] Timeout al cargar ${moduleName} desde ${url}`);
+        document.head.removeChild(script);
+        // Cargar desde fallback local
+        loadLocalFallback(moduleName).then(resolve).catch(reject);
+      }, 5000); // 5 segundos de timeout
+      
+      script.onload = () => {
+        clearTimeout(timeoutId);
+        console.log(`[ModuleFix] Módulo ${moduleName} cargado exitosamente desde URL directa`);
+        window[`__${moduleName.replace(/[@\/\-]/g, '_')}__loaded`] = true;
+        resolve(true);
+      };
+      
+      script.onerror = () => {
+        clearTimeout(timeoutId);
+        console.error(`[ModuleFix] Error al cargar ${moduleName} desde URL directa ${url}`);
+        document.head.removeChild(script);
+        // Intentar con fallback local
+        loadLocalFallback(moduleName).then(resolve).catch(reject);
+      };
+      
+      document.head.appendChild(script);
+    });
+  }
+  
   // Cargar módulo desde fallback local con URL absoluta
   function loadLocalFallback(moduleName) {
     const fallbackPath = getLocalFallbackUrl(moduleName);
