@@ -17,22 +17,41 @@
     '@heroicons/react/24/solid',
   ];
   
-  // CDN para cargar módulos:
+  // CDN para cargar módulos (URLs absolutas):
   const CDN_URLS = {
     unpkg: 'https://unpkg.com',        // Primario - soporta UMD bien
     jsdelivr: 'https://cdn.jsdelivr.net/npm',  // Secundario - cdn alternativo
     cdnjs: 'https://cdnjs.cloudflare.com/ajax/libs'  // Terciario - otra alternativa
   };
 
-  // Lista de módulos con sus versiones UMD
+  // Lista de módulos con URLs completas para evitar problemas de 'undefined'
   const CDN_MODULES = {
-    '@headlessui/react': { url: '@headlessui/react@1.7.17/dist/headlessui.umd.js' },
-    '@heroicons/react': { url: '@heroicons/react@2.0.18/dist/index.umd.min.js' },
-    'react-icons': { url: 'react-icons@4.11.0/umd/react-icons.min.js' },
-    'framer-motion': { url: 'framer-motion@10.16.4/dist/framer-motion.umd.min.js' },
-    'axios': { url: 'axios@1.6.2/dist/axios.min.js' }
+    '@headlessui/react': { 
+      unpkg: 'https://unpkg.com/@headlessui/react@1.7.17/dist/headlessui.umd.js',
+      jsdelivr: 'https://cdn.jsdelivr.net/npm/@headlessui/react@1.7.17/dist/headlessui.umd.js',
+      cdnjs: 'https://cdnjs.cloudflare.com/ajax/libs/headlessui/1.7.17/headlessui.umd.min.js'
+    },
+    '@heroicons/react': { 
+      unpkg: 'https://unpkg.com/@heroicons/react@2.0.18/dist/index.umd.min.js',
+      jsdelivr: 'https://cdn.jsdelivr.net/npm/@heroicons/react@2.0.18/dist/index.umd.min.js'
+    },
+    'react-icons': { 
+      unpkg: 'https://unpkg.com/react-icons@4.11.0/umd/react-icons.min.js',
+      jsdelivr: 'https://cdn.jsdelivr.net/npm/react-icons@4.11.0/umd/react-icons.min.js',
+      cdnjs: 'https://cdnjs.cloudflare.com/ajax/libs/react-icons/4.11.0/react-icons.min.js'
+    },
+    'framer-motion': { 
+      unpkg: 'https://unpkg.com/framer-motion@10.16.4/dist/framer-motion.umd.min.js',
+      jsdelivr: 'https://cdn.jsdelivr.net/npm/framer-motion@10.16.4/dist/framer-motion.umd.min.js',
+      cdnjs: 'https://cdnjs.cloudflare.com/ajax/libs/framer-motion/10.16.4/framer-motion.umd.min.js'
+    },
+    'axios': { 
+      unpkg: 'https://unpkg.com/axios@1.6.2/dist/axios.min.js',
+      jsdelivr: 'https://cdn.jsdelivr.net/npm/axios@1.6.2/dist/axios.min.js',
+      cdnjs: 'https://cdnjs.cloudflare.com/ajax/libs/axios/1.6.2/axios.min.js'
+    }
   };
-  
+
   // Mapeo de nombres de CDN a mapeo de módulos específicos por proveedor
   const CDN_SPECIFIC_URLS = {
     cdnjs: {
@@ -127,23 +146,24 @@
     
     // Si ya intentamos todos los CDNs, usar el fallback local
     if (currentCdnIndex >= cdnNames.length) {
-      return loadFallbackModule(moduleName);
+      return loadLocalFallback(moduleName);
     }
     
     const cdnName = cdnNames[currentCdnIndex];
-    const cdnBaseUrl = CDN_URLS[cdnName];
     
-    // Determinar la URL correcta para este CDN
+    // Obtener la URL absoluta directamente del mapping de módulos
     let moduleUrl;
-    if (cdnName === 'cdnjs' && CDN_SPECIFIC_URLS.cdnjs && CDN_SPECIFIC_URLS.cdnjs[moduleName]) {
-      // CDNJS tiene una estructura de URL diferente
-      moduleUrl = `${cdnBaseUrl}/${CDN_SPECIFIC_URLS.cdnjs[moduleName]}`;
-    } else if (CDN_MODULES[moduleName]) {
-      // Usar la URL estándar de la configuración de módulos
-      moduleUrl = `${cdnBaseUrl}/${CDN_MODULES[moduleName].url}`;
+    if (CDN_MODULES[moduleName] && CDN_MODULES[moduleName][cdnName]) {
+      moduleUrl = CDN_MODULES[moduleName][cdnName];
     } else {
-      // Si no tenemos configuración para este módulo, pasar al siguiente CDN
-      console.warn(`[ModuleFix] No hay configuración para ${moduleName} en ${cdnName}`);
+      // Si no tenemos URL directa para este CDN, intentar el siguiente
+      console.warn(`[ModuleFix] No hay URL para ${moduleName} en ${cdnName}`);
+      return loadModuleFromCDN(moduleName, currentCdnIndex + 1);
+    }
+    
+    // Corregir el problema de URL con undefined
+    if (!moduleUrl) {
+      console.error(`[ModuleFix] Error: URL no definida para ${moduleName} en ${cdnName}`);
       return loadModuleFromCDN(moduleName, currentCdnIndex + 1);
     }
     
@@ -201,10 +221,14 @@
     });
   }
   
-  // Cargar módulo desde fallback local
+  // Fallbacks locales (URLs absolutas)
+  function getLocalFallbackUrl(moduleName) {
+    return window.location.origin + '/fallback/' + moduleName.replace(/[@\/]/g, '-').toLowerCase() + '.js';
+  }
+
+  // Cargar módulo desde fallback local con URL absoluta
   function loadLocalFallback(moduleName) {
-    const moduleKey = moduleName.replace(/[@\/]/g, '_').toLowerCase();
-    const fallbackPath = `/fallback/${moduleKey}.js`;
+    const fallbackPath = getLocalFallbackUrl(moduleName);
     
     console.log(`[ModuleFix] Cargando fallback local para ${moduleName} desde ${fallbackPath}`);
     

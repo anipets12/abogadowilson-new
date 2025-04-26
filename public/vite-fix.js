@@ -31,93 +31,262 @@
   // FIX 1: WEBSOCKET RESILIENTE
   // ##################################
   
-  // Resolver puerto correcto para el servidor Vite
-  const resolveVitePort = () => {
-    const scripts = document.querySelectorAll('script[type="module"]');
-    for (const script of scripts) {
-      const src = script.getAttribute('src') || '';
-      if (src.includes('localhost:')) {
-        const match = src.match(/localhost:(\d+)/);
-        if (match && match[1]) {
-          return match[1];
+  // Detectar puerto Vite
+  function detectVitePort() {
+    // Puerto por defecto - Usar el puerto actual
+    let vitePort = window.location.port || '5173';
+    
+    try {
+      // Intentar detectar del script de recarga en caliente
+      const viteHmrScripts = [...document.querySelectorAll('script')].filter(s => 
+        s.src && (s.src.includes('/@vite/client') || s.src.includes('?t='))
+      );
+      
+      if (viteHmrScripts.length > 0) {
+        const scriptUrl = new URL(viteHmrScripts[0].src);
+        if (scriptUrl.port) {
+          vitePort = scriptUrl.port;
         }
       }
+    } catch (err) {
+      console.warn('[ViteFix] Error al detectar puerto Vite:', err);
     }
-    return '5174'; // Puerto predeterminado como fallback
-  };
+    
+    console.log(`[ViteFix] Puerto Vite detectado: ${vitePort}`);
+    return vitePort;
+  }
   
-  const vitePort = resolveVitePort();
-  console.log(`[ViteFix] Puerto Vite detectado: ${vitePort}`);
+  const vitePort = detectVitePort();
   
   // Parche avanzado para WebSocket con reconexiones automáticas
   if (window.WebSocket && !window.__VITE_FIX_STATE__.wsPatched) {
     const originalWebSocket = window.WebSocket;
+    const wsConnections = new Map();
     
-    class EnhancedWebSocket {
+    // Crear clase decoradora para WebSocket
+    class EnhancedWebSocket extends WebSocket {
       constructor(url, protocols) {
-        // Registrar intento de conexión
-        console.log(`[ViteFix] Interceptando WebSocket: ${url}`);
-        this._url = url;
-        this._protocols = protocols;
-        this._socket = null;
-        this._connectAttempt = 0;
-        this._maxRetries = 3;
-        this._listeners = { error: [], close: [], message: [], open: [] };
-        window.__VITE_FIX_STATE__.wsConnections.push(this);
-        
-        // Corregir URL si es necesario
-        if (url.includes('localhost:5173')) {
-          this._url = url.replace('localhost:5173', `localhost:${vitePort}`);
-          console.log(`[ViteFix] URL corregida: ${this._url}`);
+        // Extraer y validar el puerto de la URL del WebSocket
+        let wsUrl;
+        try {
+          wsUrl = new URL(url, window.location.href);
+        } catch (e) {
+          // Si la URL no es válida, usar la original
+          console.warn(`[ViteFix] URL inválida para WebSocket: ${url}`);
+          super(url, protocols);
+          return;
         }
         
-        // Intentar conexión
-        this._connect();
+        // Comprobar si necesitamos corregir el puerto (solo para localhost)
+        let finalUrl = url;
+        if (wsUrl.hostname === 'localhost' || wsUrl.hostname === '127.0.0.1') {
+          const currentPort = vitePort;
+          const wsPort = wsUrl.port;
+          
+          // Si los puertos son diferentes, corregir la URL
+          if (wsPort && wsPort !== currentPort && wsPort === '5174') {
+            finalUrl = url.replace(`localhost:${wsPort}`, `localhost:${currentPort}`);
+            console.log(`[ViteFix] Corrigiendo WebSocket: ${url} → ${finalUrl}`);
+          }
+        }
         
-        // Propiedades requeridas
-        this.CONNECTING = 0;
-        this.OPEN = 1;
-        this.CLOSING = 2;
-        this.CLOSED = 3;
+        // Crear el WebSocket con la URL posiblemente corregida
+        super(finalUrl, protocols);
         
-        // Retornar this para chainability
-        return this;
+        // Propiedades para manejo de reconexiones
+        this._originalUrl = finalUrl;
+        this._reconnectAttempts = 0;
+        this._maxReconnectAttempts = 3;  // Límite de intentos para evitar bucles
+        this._id = Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
+        
+        console.log(`[ViteFix] WebSocket (${this._id}): Iniciado con ${finalUrl}`);
+        
+        // Registrar en el mapa de conexiones activas
+        wsConnections.set(this._id, this);
+        
+        // Establecer manejadores de eventos
+        this.addEventListener('open', this._handleOpen.bind(this));
+        this.addEventListener('close', this._handleClose.bind(this));
+        this.addEventListener('error', this._handleError.bind(this));
+      
+      // Manejador de evento 'open'
+      _handleOpen(event) {
+        console.log(`[ViteFix] WebSocket (${this._id}): Conexiu00f3n abierta`);
+        this._reconnectAttempts = 0; // Resetear intentos cuando se conecta correctamente
       }
       
-      _connect() {
-        this._connectAttempt++;
-        console.log(`[ViteFix] Intento de conexión #${this._connectAttempt} a ${this._url}`);
+      // Manejador de evento 'close'
+      _handleClose(event) {
+        console.log(`[ViteFix] WebSocket (${this._id}): Conexiu00f3n cerrada${event.wasClean ? ' limpiamente' : ''} (cu00f3digo: ${event.code})`);
         
-        try {
-          this._socket = new originalWebSocket(this._url, this._protocols);
+        // Si la conexiu00f3n se cerru00f3 correctamente o excedimos los intentos, no reconectar
+        if (event.wasClean || this._reconnectAttempts >= this._maxReconnectAttempts) {
+          wsConnections.delete(this._id);
+          return;
+        }
+        
+        // Incrementar contador de intentos y calcular retraso exponencial
+        this._reconnectAttempts++;
+        const delay = Math.min(1000 * Math.pow(1.5, this._reconnectAttempts), 10000);
+        
+        console.log(`[ViteFix] WebSocket (${this._id}): Intentando reconexiu00f3n #${this._reconnectAttempts} en ${delay}ms`);
+        
+        // Programar intento de reconexiu00f3n
+        setTimeout(() => {
+          // Verificar que todavu00eda es relevante esta conexiu00f3n
+          if (!wsConnections.has(this._id)) return;
           
-          // Reenviar eventos
-          this._socket.onopen = (event) => {
-            console.log(`[ViteFix] WebSocket conectado exitosamente a ${this._url}`);
-            this.readyState = this._socket.readyState;
-            if (this.onopen) this.onopen(event);
-            this._dispatch('open', event);
+          try {
+            // Crear nuevo WebSocket con la URL original (usando WebSocket original)
+            console.log(`[ViteFix] WebSocket (${this._id}): Reconectando a ${this._originalUrl}`);
+            const newWs = new originalWebSocket(this._originalUrl);
             
-            // Configurar WebSocket para desarrollo con manejo de errores mejorado
-            function setupWebSocket() {
-              // Si estamos en producción o hay una bandera para deshabilitar WebSocket, salir
-              if (window.__ENV__ && window.__ENV__.PROD === true || localStorage.getItem('DISABLE_VITE_WS') === 'true') {
-                console.log('[ViteFix] WebSocket desactivado en producción o manualmente');
-                return;
-              }
-              
-              // Si no hay soporte para WebSocket en el navegador, salir
-              if (!window.WebSocket) {
-                console.warn('[ViteFix] WebSocket no disponible en este navegador');
-                return;
-              }
-              
-              let wsInstance = null;
-              let reconnectTimer = null;
-              const MAX_RECONNECTS = 1; // Reducir el máximo de reconexiones para evitar bucles
-              let reconnectCount = 0;
-              let wsConnected = false;
-              
+            // Transferir propiedades relevantes
+            newWs._originalUrl = this._originalUrl;
+            newWs._reconnectAttempts = this._reconnectAttempts;
+            newWs._maxReconnectAttempts = this._maxReconnectAttempts;
+            newWs._id = this._id;
+            
+            // Configurar manejadores de eventos
+            newWs.addEventListener('open', this._handleOpen.bind(newWs));
+            newWs.addEventListener('close', this._handleClose.bind(newWs));
+            newWs.addEventListener('error', this._handleError.bind(newWs));
+            
+            // Actualizar la referencia en el mapa de conexiones
+            wsConnections.set(this._id, newWs);
+          } catch (err) {
+            console.error(`[ViteFix] Error al reconectar WebSocket (${this._id}):`, err);
+            wsConnections.delete(this._id);
+          }
+        }, delay);
+      }
+      
+      // Manejador de evento 'error'
+      _handleError(event) {
+        console.error(`[ViteFix] WebSocket (${this._id}): Error`);
+      }
+      
+      // Sobrecargar el método close para limpiar recursos
+      close(code, reason) {
+        console.log(`[ViteFix] WebSocket (${this._id}): Cerrando manualmente`);
+        wsConnections.delete(this._id);
+        super.close(code, reason);
+      }
+    }
+    
+    // Reemplazar el constructor global de WebSocket
+    window.WebSocket = EnhancedWebSocket;
+    window.__VITE_FIX_STATE__.wsPatched = true;
+    console.log('[ViteFix] Sistema mejorado de WebSocket instalado');
+    
+    // Función para limpiar conexiones WebSocket no utilizadas
+    function cleanupWebSockets() {
+      if (wsConnections.size > 0) {
+        console.log(`[ViteFix] Limpiando ${wsConnections.size} conexiones WebSocket inactivas`);
+        wsConnections.forEach((ws, id) => {
+          if (ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING) {
+            wsConnections.delete(id);
+          }
+        });
+      }
+    }
+    
+    // Inicializar conexión WebSocket
+    let wsInstance = null;
+    let reconnectTimer = null;
+    const MAX_RECONNECTS = 1; // Reducir el máximo de reconexiones para evitar bucles
+    let reconnectCount = 0;
+    let wsConnected = false;
+    
+    function connect() {
+      try {
+        // Cerrar cualquier conexión existente
+        if (wsInstance) {
+          try {
+            wsInstance.close();
+          } catch (e) {
+            // Ignorar errores al cerrar
+          }
+        }
+        
+        // URL base del servidor actual
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const host = window.location.hostname + (window.location.port ? ':' + window.location.port : '');
+        const wsUrl = `${protocol}//${host}?vite&token=${generateToken()}`;
+        
+        console.log(`[ViteFix] Conectando WebSocket a ${wsUrl}...`);
+        
+        wsInstance = new WebSocket(wsUrl);
+        
+        // Establecer un timeout para detectar si la conexión está tomando demasiado tiempo
+        const connectionTimeout = setTimeout(() => {
+          if (!wsConnected) {
+            console.warn('[ViteFix] Tiempo de espera para conexión WebSocket agotado');
+            wsInstance.close();
+            // Marcar como inutilizable para esta sesión
+            localStorage.setItem('DISABLE_VITE_WS', 'true');
+          }
+        }, 5000);
+        
+        wsInstance.onopen = function() {
+          console.log('[ViteFix] WebSocket conectado exitosamente a ' + wsUrl);
+          wsConnected = true;
+          clearTimeout(connectionTimeout);
+          reconnectCount = 0; // Restablecer contador de reconexiones
+          
+          // Informar que el sistema de desarrollo está activo
+          dispatchCustomEvent('vite-connected', { success: true });
+        };
+        
+        wsInstance.onclose = function(event) {
+          console.log('[ViteFix] WebSocket cerrado: ' + event.code + ' - ' + (event.reason || 'Sin motivo'));
+          wsConnected = false;
+          clearTimeout(connectionTimeout);
+          
+          // Si estaba conectado anteriormente, establecer flags para indicar desconexión
+          if (wsConnected) {
+            dispatchCustomEvent('vite-disconnected', { code: event.code });
+          }
+          
+          // Si la conexión fue rechazada por el servidor (403), no reconectar
+          if (event.code === 1003 || event.code === 1008 || event.code === 1011) {
+            console.warn('[ViteFix] La conexión WebSocket fue rechazada por el servidor');
+            localStorage.setItem('DISABLE_VITE_WS', 'true');
+            return;
+          }
+          
+          // Intentar reconectar solo si es un cierre anormal y no hemos excedido los reintentos
+          if (reconnectCount < MAX_RECONNECTS) {
+            reconnectCount++;
+            console.log(`[ViteFix] Reintentando conexión WebSocket (${reconnectCount}/${MAX_RECONNECTS})...`);
+            
+            clearTimeout(reconnectTimer);
+            reconnectTimer = setTimeout(connect, 3000 * reconnectCount); // Espera progresiva
+          } else {
+            console.warn('[ViteFix] Máximo de reconexiones alcanzado, WebSocket desactivado');
+            localStorage.setItem('DISABLE_VITE_WS', 'true');
+          }
+        };
+        
+        wsInstance.onerror = function(error) {
+          console.error('[ViteFix] Error en WebSocket:', error);
+          // No intentar reconectar aquí, onclose se llamará después de onerror
+        };
+        
+        wsInstance.onmessage = function(event) {
+          // Ignorar mensajes ping/pong y similares
+          if (event.data) {
+            let updateDetected = false;
+            
+            try {
+              const parsedData = JSON.parse(event.data);
+              if (parsedData && parsedData.type) {
+                if (parsedData.type === 'update') {
+                  console.log('[ViteFix] Actualización detectada, recargando página...');
+                  updateDetected = true;
+                } else if (parsedData.type === 'full-reload') {
+                  console.log('[ViteFix] Recarga completa solicitada por Vite');
+                  updateDetected = true;                  
               function connect() {
                 try {
                   // Cerrar cualquier conexión existente
@@ -505,7 +674,7 @@
         '@headlessui/react': 'https://unpkg.com/@headlessui/react@1.7.17/dist/headlessui.umd.js',
         '@heroicons/react': 'https://unpkg.com/@heroicons/react@2.0.18/dist/index.umd.min.js',
         'react-icons': 'https://unpkg.com/react-icons@4.11.0/umd/react-icons.min.js',
-        'react-icons/fa': '/fallback/react-icons-fa.js',
+        'react-icons/fa': 'https://unpkg.com/react-icons@4.11.0/fa/index.js',
         'framer-motion': 'https://unpkg.com/framer-motion@10.16.4/dist/framer-motion.umd.min.js',
         'axios': 'https://unpkg.com/axios@1.6.2/dist/axios.min.js'
       }
