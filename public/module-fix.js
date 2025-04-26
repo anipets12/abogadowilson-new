@@ -24,32 +24,24 @@
     cdnjs: 'https://cdnjs.cloudflare.com/ajax/libs'  // Terciario - otra alternativa
   };
 
-  // Lista de módulos con URLs completas para evitar problemas de 'undefined'
-  const CDN_MODULES = {
-    '@headlessui/react': { 
-      unpkg: 'https://unpkg.com/@headlessui/react@1.7.17/dist/headlessui.umd.js',
-      jsdelivr: 'https://cdn.jsdelivr.net/npm/@headlessui/react@1.7.17/dist/headlessui.umd.js',
-      cdnjs: 'https://cdnjs.cloudflare.com/ajax/libs/headlessui/1.7.17/headlessui.umd.min.js'
-    },
-    '@heroicons/react': { 
-      unpkg: 'https://unpkg.com/@heroicons/react@2.0.18/dist/index.umd.min.js',
-      jsdelivr: 'https://cdn.jsdelivr.net/npm/@heroicons/react@2.0.18/dist/index.umd.min.js'
-    },
-    'react-icons': { 
-      unpkg: 'https://unpkg.com/react-icons@4.11.0/umd/react-icons.min.js',
-      jsdelivr: 'https://cdn.jsdelivr.net/npm/react-icons@4.11.0/umd/react-icons.min.js',
-      cdnjs: 'https://cdnjs.cloudflare.com/ajax/libs/react-icons/4.11.0/react-icons.min.js'
-    },
-    'framer-motion': { 
-      unpkg: 'https://unpkg.com/framer-motion@10.16.4/dist/framer-motion.umd.min.js',
-      jsdelivr: 'https://cdn.jsdelivr.net/npm/framer-motion@10.16.4/dist/framer-motion.umd.min.js',
-      cdnjs: 'https://cdnjs.cloudflare.com/ajax/libs/framer-motion/10.16.4/framer-motion.umd.min.js'
-    },
-    'axios': { 
-      unpkg: 'https://unpkg.com/axios@1.6.2/dist/axios.min.js',
-      jsdelivr: 'https://cdn.jsdelivr.net/npm/axios@1.6.2/dist/axios.min.js',
-      cdnjs: 'https://cdnjs.cloudflare.com/ajax/libs/axios/1.6.2/axios.min.js'
-    }
+  // Lista de URLs seguras y absolutas para módulos críticos
+  const SAFE_MODULE_URLS = {
+    'axios': 'https://unpkg.com/axios@1.6.2/dist/axios.min.js',
+    'framer-motion': 'https://unpkg.com/framer-motion@10.16.4/dist/framer-motion.umd.min.js',
+    '@headlessui/react': 'https://unpkg.com/@headlessui/react@1.7.17/dist/headlessui.umd.js',
+    '@heroicons/react': 'https://unpkg.com/@heroicons/react@2.0.18/dist/index.umd.min.js',
+    'react-icons': 'https://unpkg.com/react-icons@4.11.0/umd/react-icons.min.js',
+    'react-icons/fa': 'https://unpkg.com/react-icons@4.11.0/fa/index.js'
+  };
+
+  // URLs de fallback en caso de que falle unpkg
+  const FALLBACK_URLS = {
+    'axios': 'https://cdn.jsdelivr.net/npm/axios@1.6.2/dist/axios.min.js',
+    'framer-motion': 'https://cdn.jsdelivr.net/npm/framer-motion@10.16.4/dist/framer-motion.umd.min.js',
+    '@headlessui/react': 'https://cdn.jsdelivr.net/npm/@headlessui/react@1.7.17/dist/headlessui.umd.js',
+    '@heroicons/react': 'https://cdn.jsdelivr.net/npm/@heroicons/react@2.0.18/dist/index.umd.min.js',
+    'react-icons': 'https://cdn.jsdelivr.net/npm/react-icons@4.11.0/umd/react-icons.min.js',
+    'react-icons/fa': 'https://cdn.jsdelivr.net/npm/react-icons@4.11.0/fa/index.js'
   };
 
   // Mapeo de nombres de CDN a mapeo de módulos específicos por proveedor
@@ -110,20 +102,32 @@
     }, true);
   }
   
-  // Precargar módulos problemáticos conocidos de forma asincrónica
+  // Precargar módulos problemáticos conocidos de forma asíncrona
   function preloadProblematicModules() {
     console.log('[ModuleFix] Precargando módulos con problemas conocidos...');
     
     // Array de promesas de carga
     const loadPromises = [];
     
-    // Para cada base de módulo (react-icons, headlessui, etc)
-    Object.keys(CDN_MODULES).forEach(baseModuleName => {
+    // Cargar directamente usando URLs seguras
+    Object.keys(SAFE_MODULE_URLS).forEach(moduleName => {
       loadPromises.push(
-        loadModuleFromCDN(baseModuleName, CDN_MODULES[baseModuleName])
+        loadModuleDirectly(moduleName, SAFE_MODULE_URLS[moduleName])
           .catch(error => {
-            console.error(`[ModuleFix] Error al precargar ${baseModuleName}:`, error);
-            return false; // No detener la carga por un error
+            console.error(`[ModuleFix] Error al cargar ${moduleName} desde URL principal:`, error);
+            
+            // Intentar con URL de fallback
+            if (FALLBACK_URLS[moduleName]) {
+              return loadModuleDirectly(moduleName, FALLBACK_URLS[moduleName])
+                .catch(fallbackError => {
+                  console.error(`[ModuleFix] Error al cargar fallback de ${moduleName}:`, fallbackError);
+                  // Último recurso: cargar desde local
+                  return loadLocalFallback(moduleName);
+                });
+            } else {
+              // Si no hay fallback definido, ir directamente a local
+              return loadLocalFallback(moduleName);
+            }
           })
       );
     });
@@ -134,7 +138,7 @@
     });
   }
   
-  // Cargar un módulo desde CDN con sistema de reintentos
+  // Cargar un módulo desde CDN con sistema mejorado
   function loadModuleFromCDN(moduleName, currentCdnIndex = 0) {
     // Evitar cargar el mismo módulo múltiples veces
     if (window[`__${moduleName.replace(/[@\/\-]/g, '_')}__loaded`]) {
@@ -142,99 +146,15 @@
       return Promise.resolve(true);
     }
     
-    // Usar URLs absolutas predefinidas para dependencias críticas
-    const DIRECT_URLS = {
-      'axios': 'https://unpkg.com/axios@1.6.2/dist/axios.min.js',
-      'framer-motion': 'https://unpkg.com/framer-motion@10.16.4/dist/framer-motion.umd.min.js',
-      '@headlessui/react': 'https://unpkg.com/@headlessui/react@1.7.17/dist/headlessui.umd.js',
-      '@heroicons/react': 'https://unpkg.com/@heroicons/react@2.0.18/dist/index.umd.min.js',
-      'react-icons': 'https://unpkg.com/react-icons@4.11.0/umd/react-icons.min.js',
-      'react-icons/fa': 'https://unpkg.com/react-icons@4.11.0/fa/index.js'
-    };
-    
-    // Si el módulo tiene una URL directa, usarla sin importar el CDN
-    if (DIRECT_URLS[moduleName]) {
-      console.log(`[ModuleFix] Usando URL directa para ${moduleName}: ${DIRECT_URLS[moduleName]}`);
-      return loadModuleDirectly(moduleName, DIRECT_URLS[moduleName]);
+    // Siempre usar URLs seguras y absolutas para módulos críticos
+    if (SAFE_MODULE_URLS[moduleName]) {
+      console.log(`[ModuleFix] Usando URL directa para ${moduleName}: ${SAFE_MODULE_URLS[moduleName]}`);
+      return loadModuleDirectly(moduleName, SAFE_MODULE_URLS[moduleName]);
     }
     
-    const cdnNames = Object.keys(CDN_URLS);
-    
-    // Si ya intentamos todos los CDNs, usar el fallback local
-    if (currentCdnIndex >= cdnNames.length) {
-      return loadLocalFallback(moduleName);
-    }
-    
-    const cdnName = cdnNames[currentCdnIndex];
-    
-    // Obtener la URL absoluta directamente del mapping de módulos
-    let moduleUrl;
-    if (CDN_MODULES[moduleName] && CDN_MODULES[moduleName][cdnName]) {
-      moduleUrl = CDN_MODULES[moduleName][cdnName];
-    } else {
-      // Si no tenemos URL directa para este CDN, intentar el siguiente
-      console.warn(`[ModuleFix] No hay URL para ${moduleName} en ${cdnName}`);
-      return loadModuleFromCDN(moduleName, currentCdnIndex + 1);
-    }
-    
-    // Corregir el problema de URL con undefined
-    if (!moduleUrl || moduleUrl.includes('undefined')) {
-      console.error(`[ModuleFix] Error: URL incorrecta para ${moduleName} en ${cdnName}: ${moduleUrl}`);
-      return loadModuleFromCDN(moduleName, currentCdnIndex + 1);
-    }
-    
-    console.log(`[ModuleFix] Intentando cargar ${moduleName} desde ${moduleUrl} (CDN: ${cdnName})`);
-    
-    return new Promise((resolve, reject) => {
-      const script = document.createElement('script');
-      script.src = moduleUrl;
-      script.async = true;
-      script.crossOrigin = 'anonymous'; // Importante para CORS
-      
-      // Marcar con atributo de datos para identificar
-      script.setAttribute('data-module-name', moduleName);
-      script.setAttribute('data-cdn-source', cdnName);
-      
-      // Establecer timeout para detectar cargas lentas
-      const timeoutId = setTimeout(() => {
-        console.warn(`[ModuleFix] Timeout al cargar ${moduleName} desde ${moduleUrl}`);
-        // Intentar con el siguiente CDN
-        document.head.removeChild(script);
-        loadModuleFromCDN(moduleName, currentCdnIndex + 1)
-          .then(resolve)
-          .catch(reject);
-      }, 5000); // 5 segundos de timeout
-      
-      script.onload = () => {
-        clearTimeout(timeoutId);
-        console.log(`[ModuleFix] Módulo ${moduleName} cargado exitosamente desde ${cdnName}`);
-        window[`__${moduleName.replace(/[@\/\-]/g, '_')}__loaded`] = true;
-        resolve(true);
-      };
-      
-      script.onerror = () => {
-        clearTimeout(timeoutId);
-        console.error(`[ModuleFix] Error al cargar ${moduleName} desde ${moduleUrl}`);
-        // Intentar con el siguiente CDN
-        document.head.removeChild(script);
-        loadModuleFromCDN(moduleName, currentCdnIndex + 1)
-          .then(resolve)
-          .catch(reject);
-      };
-      
-      document.head.appendChild(script);
-      
-      // Función para intentar con el siguiente CDN o cargar desde fallback local
-      function tryNextCDN() {
-        // Si hay más CDNs disponibles, intentar con el siguiente
-        if (Array.isArray(cdnUrls) && CDN_ATTEMPTS[moduleName] < cdnUrls.length * 2) {
-          loadModuleFromCDN(moduleName, cdnUrls).then(resolve).catch(reject);
-        } else {
-          console.warn(`[ModuleFix] Todos los CDNs fallaron para ${moduleName}, cargando versión local`);
-          loadLocalFallback(moduleName).then(resolve).catch(reject);
-        }
-      }
-    });
+    // Si no tenemos una URL segura, usar fallback local
+    console.log(`[ModuleFix] No hay URL segura para ${moduleName}, usando fallback local`);
+    return loadLocalFallback(moduleName);
   }
   
   // Fallbacks locales (URLs absolutas)
