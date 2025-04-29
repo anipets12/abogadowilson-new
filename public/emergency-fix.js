@@ -109,6 +109,56 @@
     document.head.appendChild(style);
   }
   
+  // Parchear console.error para capturar y contar errores y evitar caídas
+  function patchConsoleError() {
+    // Evitar duplicar el parche si ya fue aplicado
+    if (console.__EMERGENCY_PATCHED__) return;
+    console.__EMERGENCY_PATCHED__ = true;
+
+    const originalError = console.error.bind(console);
+    const originalWarn = console.warn.bind(console);
+
+    console.error = function (...args) {
+      try {
+        // Registrar error en el estado global si está disponible
+        if (window.__RECOVERY_STATE__ && Array.isArray(window.__RECOVERY_STATE__.errors)) {
+          window.__RECOVERY_STATE__.errors.push({
+            message: args && args.length ? args[0] : 'Unknown console.error',
+            timestamp: new Date().toISOString()
+          });
+        }
+
+        // Incrementar contador de errores y activar fallback si se excede el límite
+        errorCounter++;
+        if (errorCounter > MAX_ERRORS && !fallbackActivated) {
+          fallbackActivated = true;
+          console.log('[EmergencyFix] Demasiados errores en console.error, activando modo de emergencia');
+          renderEmergencyApp();
+        }
+      } catch (e) {
+        // Ignorar cualquier fallo durante el registro de errores
+      }
+
+      // Delegar al console.error original
+      originalError(...args);
+    };
+
+    // También parchear console.warn para mantener consistencia (no incrementa contador)
+    console.warn = function (...args) {
+      try {
+        if (window.__RECOVERY_STATE__ && Array.isArray(window.__RECOVERY_STATE__.errors)) {
+          window.__RECOVERY_STATE__.errors.push({
+            message: args && args.length ? '[WARN] ' + args[0] : 'Unknown console.warn',
+            timestamp: new Date().toISOString()
+          });
+        }
+      } catch (e) {
+        // Silenciar
+      }
+      originalWarn(...args);
+    };
+  }
+  
   // Renderizar la aplicaciu00f3n de emergencia
   function renderEmergencyApp() {
     const rootElement = ensureRoot();

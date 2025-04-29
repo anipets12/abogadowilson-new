@@ -767,8 +767,12 @@ async function handleRequest(request, options = {}) {
       });
     }
   }
+
+  // Exportación del handler principal
+  return { fetch: handleRequest };
 }
 
+// Definición del worker de Cloudflare
 export default {
   // Asegurar disponibilidad de bindings KV y D1
   async fetch(request, env, ctx) {
