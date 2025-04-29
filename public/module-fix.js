@@ -24,24 +24,25 @@
     cdnjs: 'https://cdnjs.cloudflare.com/ajax/libs'  // Terciario - otra alternativa
   };
 
-  // Lista de URLs seguras y absolutas para módulos críticos
+  // Lista de URLs seguras y absolutas para módulos críticos con tipos MIME correctos
   const SAFE_MODULE_URLS = {
-    'axios': 'https://unpkg.com/axios@1.6.2/dist/axios.min.js',
-    'framer-motion': 'https://unpkg.com/framer-motion@10.16.4/dist/framer-motion.umd.min.js',
-    '@headlessui/react': 'https://unpkg.com/@headlessui/react@1.7.17/dist/headlessui.umd.js',
-    '@heroicons/react': 'https://unpkg.com/@heroicons/react@2.0.18/dist/index.umd.min.js',
-    'react-icons': 'https://unpkg.com/react-icons@4.11.0/umd/react-icons.min.js',
-    'react-icons/fa': 'https://unpkg.com/react-icons@4.11.0/fa/index.js'
+    // Evitamos unpkg en lo posible debido a problemas de CORS
+    'axios': 'https://cdnjs.cloudflare.com/ajax/libs/axios/1.6.2/axios.min.js', // CDNJS tiene mejores headers
+    'framer-motion': 'https://cdnjs.cloudflare.com/ajax/libs/framer-motion/10.16.4/framer-motion.min.js',
+    '@headlessui/react': '/fallback/headlessui.js', // Usamos siempre el local para evitar CORS
+    '@heroicons/react': '/fallback/heroicons-react.js', // Usamos siempre el local para evitar CORS
+    'react-icons': '/fallback/react-icons.js',
+    'react-icons/fa': '/fallback/react-icons-fa.js'
   };
 
-  // URLs de fallback en caso de que falle unpkg
+  // URLs de fallback en caso de que falle el CDN principal
   const FALLBACK_URLS = {
-    'axios': 'https://cdn.jsdelivr.net/npm/axios@1.6.2/dist/axios.min.js',
-    'framer-motion': 'https://cdn.jsdelivr.net/npm/framer-motion@10.16.4/dist/framer-motion.umd.min.js',
-    '@headlessui/react': 'https://cdn.jsdelivr.net/npm/@headlessui/react@1.7.17/dist/headlessui.umd.js',
-    '@heroicons/react': 'https://cdn.jsdelivr.net/npm/@heroicons/react@2.0.18/dist/index.umd.min.js',
-    'react-icons': 'https://cdn.jsdelivr.net/npm/react-icons@4.11.0/umd/react-icons.min.js',
-    'react-icons/fa': 'https://cdn.jsdelivr.net/npm/react-icons@4.11.0/fa/index.js'
+    'axios': '/fallback/axios.js', // Siempre usar local como fallback final
+    'framer-motion': '/fallback/framer-motion.js',
+    '@headlessui/react': '/fallback/headlessui.js',
+    '@heroicons/react': '/fallback/heroicons-react.js',
+    'react-icons': '/fallback/react-icons.js',
+    'react-icons/fa': '/fallback/react-icons-fa.js'
   };
 
   // Mapeo de nombres de CDN a mapeo de módulos específicos por proveedor
@@ -159,7 +160,27 @@
   
   // Fallbacks locales (URLs absolutas)
   function getLocalFallbackUrl(moduleName) {
-    return window.location.origin + '/fallback/' + moduleName.replace(/[@\/]/g, '-').toLowerCase() + '.js';
+    // Mapa de nombres especiales para módulos que tienen nombres particulares
+    const SPECIAL_MODULE_NAMES = {
+      '@heroicons/react': 'heroicons-react',
+      '@headlessui/react': 'headlessui',
+      'react-icons/fa': 'react-icons-fa',
+      'framer-motion': 'framer-motion'
+    };
+    
+    // Si el módulo tiene un nombre especial, usarlo directamente
+    if (SPECIAL_MODULE_NAMES[moduleName]) {
+      return window.location.origin + '/fallback/' + SPECIAL_MODULE_NAMES[moduleName] + '.js';
+    }
+    
+    // Generar un nombre estándar para los demás módulos
+    let safeName = moduleName.replace(/[@\/]/g, '-').toLowerCase();
+    // Evitar nombres que comienzan con guión
+    if (safeName.startsWith('-')) {
+      safeName = safeName.substring(1);
+    }
+    
+    return window.location.origin + '/fallback/' + safeName + '.js';
   }
 
   // Cargar módulo directamente desde una URL absoluta

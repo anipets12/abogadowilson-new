@@ -335,6 +335,32 @@
     });
   }
   
+  // Función para inicializar el sistema de emergencia
+  function initializeEmergencySystem() {
+    console.log('[EmergencyFix] Inicializando sistema de emergencia...');
+    ensureStyles();
+    
+    // Crear observador para detectar cuandu00f3 renderizar la aplicaciu00f3n de emergencia
+    const observer = new MutationObserver((mutations) => {
+      errorCounter++;
+      if (errorCounter > MAX_ERRORS && !fallbackActivated) {
+        fallbackActivated = true;
+        console.log('[EmergencyFix] Demasiados errores detectados, activando modo de emergencia');
+        renderEmergencyApp();
+      }
+    });
+    
+    // Observar cambios en el DOM
+    observer.observe(document.body, { childList: true, subtree: true });
+    
+    // Parchear funciones de error
+    patchConsoleError();
+    
+    // Inicializar está completo
+    initialized = true;
+    console.log('[EmergencyFix] Sistema de emergencia inicializado correctamente');
+  }
+  
   // Inicializar todo cuando el DOM estu00e9 listo
   function safeInitialize() {
     if (document.body) {

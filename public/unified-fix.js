@@ -20,34 +20,71 @@
   
   // Cargar todas las bibliotecas locales de forma sincru00f3nica para garantizar disponibilidad inmediata
   function loadLocalLibraries() {
-    for (const lib of localLibraries) {
-      if (!lib.check()) {
-        console.log(`[UnifiedFix] Cargando ${lib.name} localmente`);
-        loadSyncScript(lib.path);
-      } else {
-        console.log(`[UnifiedFix] ${lib.name} ya estu00e1 disponible globalmente`);
+    // Cargar dependencias críticas si no están ya cargadas de forma asincrónica
+    async function loadCriticalDependencies() {
+      if (!window.React) {
+        console.log('[UnifiedFix] Cargando React localmente');
+        await loadScriptSync('/fallback/react.production.min.js');
       }
+      
+      if (!window.ReactDOM) {
+        console.log('[UnifiedFix] Cargando ReactDOM localmente');
+        await loadScriptSync('/fallback/react-dom.production.min.js');
+      }
+      
+      console.log('[UnifiedFix] Cargando ReactRouterDOM localmente');
+      await loadScriptSync('/fallback/react-router-dom.js');
+      
+      console.log('[UnifiedFix] Cargando HeadlessUI localmente');
+      await loadScriptSync('/fallback/headlessui.js');
+      
+      console.log('[UnifiedFix] Todas las dependencias críticas cargadas correctamente');
     }
+    
+    // Iniciar carga de dependencias
+    loadCriticalDependencies().catch(error => {
+      console.error('[UnifiedFix] Error al cargar dependencias críticas:', error);
+    });
   }
   
-  // Cargar script de forma sincru00f3nica
-  function loadSyncScript(src) {
-    const xhr = new XMLHttpRequest();
-    xhr.open('GET', src, false); // sINCRONO para garantizar carga inmediata
-    try {
-      xhr.send();
-      if (xhr.status >= 200 && xhr.status < 300) {
-        const scriptContent = xhr.responseText;
-        const script = document.createElement('script');
-        script.textContent = scriptContent;
-        document.head.appendChild(script);
-        console.log(`[UnifiedFix] Script cargado sincru00f3nicamente: ${src}`);
-        return true;
-      }
-    } catch (e) {
-      console.error(`[UnifiedFix] Error al cargar ${src}:`, e);
-    }
-    return false;
+  // Cargar script local de forma asincru00f3nica
+  function loadScriptSync(url) {
+    console.log(`[UnifiedFix] Cargando ${url} localmente`);
+    
+    return new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = url;
+      script.async = true;
+      
+      script.onload = () => {
+        console.log(`[UnifiedFix] Script cargado exitosamente: ${url}`);
+        resolve(true);
+      };
+      
+      script.onerror = (error) => {
+        console.error(`[UnifiedFix] Error al cargar ${url}:`, error);
+        // Intentar cargar usando un enfoque alternativo
+        fetch(url)
+          .then(response => {
+            if (!response.ok) throw new Error(`HTTP error ${response.status}`);
+            return response.text();
+          })
+          .then(code => {
+            const inlineScript = document.createElement('script');
+            inlineScript.type = 'text/javascript';
+            inlineScript.text = code;
+            document.head.appendChild(inlineScript);
+            console.log(`[UnifiedFix] Script cargado mediante fetch alternativo: ${url}`);
+            resolve(true);
+          })
+          .catch(fetchError => {
+            console.error(`[UnifiedFix] Error en carga alternativa de ${url}:`, fetchError);
+            reject(fetchError);
+          });
+      };
+      
+      document.head.appendChild(script);
+    });
   }
   
   // Corregir errores en standalone-app.js 

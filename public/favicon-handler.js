@@ -1,22 +1,38 @@
 /**
- * Sistema de gestiu00f3n de favicon con respaldo base64 incorporado
- * Soluciona problemas de carga de favicon en Cloudflare Workers
+ * Sistema de gestiu00f3n de favicon con respaldo base64 incorporado - v2.0
+ * Soluciona problemas de carga de favicon en Cloudflare Workers de forma definitiva
+ * Implementa mu00faltiples niveles de respaldo para garantizar disponibilidad
  */
 
 (function() {
-  console.log('[FaviconHandler] Inicializando sistema de gestiu00f3n de favicon...');
+  console.log('[FaviconHandler] Inicializando sistema avanzado de gestiu00f3n de favicon...');
   
-  // Favicon en base64 como respaldo absoluto
+  // Favicon en base64 como respaldo absoluto (versión optimizada)
   const faviconBase64 = 'AAABAAEAEBAAAAEAIABoBAAAFgAAACgAAAAQAAAAIAAAAAEAIAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAEC7u7uB+7u7gfu7u4H7u7uB+7u7gfu7u4H7u7uB+7u7gfu7u4H7u7uB+7u7gfu7u4H7u7uB+7u7gfu7u4H7u7uB+7u7lLu7u5N7u7uTe7u7k3u7u5N7u7uTe7u7k3u7u5N7u7uTe7u7k3u7u5N7u7uTe7u7k3u7u5N7u7uTe7u7k3u7u7T7u7u0O7u7tDu7u7Q7u7u0O7u7tDu7u7Q7u7u0O7u7tDu7u7Q7u7u0O7u7tDu7u7Q7u7u0O7u7tDu7u7Q7u7u/+7u7v/u7u7/7u7u/+7u7v/u7u7/7u7u/+7u7v/u7u7/7u7u/+7u7v/u7u7/7u7u/+7u7v/u7u7/7u7u/+7u7v/u7u7/7u7u/+7u7v/u7u7/7u7u/+7u7v/u7u7/7u7u/+7u7v/u7u7/7u7u/+7u7v/u7u7/7u7u/+7u7v/u7u7/7u7u/+7u7v/u7u7/7u7u/+7u7v/u7u7/7u7u/+7u7v/u7u7/7u7u/+7u7v/u7u7/7u7u/+7u7v/u7u7/7u7u/+7u7v/u7u7/7u7u/+7u7v/u7u7/7u7u0e7u7s/u7u7P7u7uz+7u7s/u7u7P7u7uz+7u7s/u7u7P7u7uz+7u7s/u7u7P7u7uz+7u7s/u7u7P7u7u0e7u7k/u7u5M7u7uTO7u7kzu7u5M7u7uTO7u7kzu7u5M7u7uTO7u7kzu7u5M7u7uTO7u7kzu7u5M7u7uTO7u7k/u7u4G7u7uBu7u7gbu7u4G7u7uBu7u7gbu7u4G7u7uBu7u7gbu7u4G7u7uBu7u7gbu7u4G7u7uBu7u7gbu7u4GAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAA=';
   
-  // SVG favicon como respaldo
+  // SVG favicon optimizado como respaldo (funciona en todos los navegadores)
   const faviconSvg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="#1e40af"/><text x="50" y="60" font-size="40" text-anchor="middle" fill="white">AW</text></svg>';
+  
+  // Crear link rel="preload" para cargar el favicon anticipadamente
+  const preloadLink = document.createElement('link');
+  preloadLink.rel = 'preload';
+  preloadLink.as = 'image';
+  preloadLink.href = '/favicon.ico';
+  preloadLink.type = 'image/x-icon';
+  document.head.appendChild(preloadLink);
   
   // Crear una funciu00f3n para generar Data URLs
   function createDataUrl(data, mimeType) {
     return `data:${mimeType};base64,${data}`;
   }
   
+  // Crear el favicon inline como respaldo u00faltimo
+  const inlineFavicon = document.createElement('link');
+  inlineFavicon.rel = 'icon';
+  inlineFavicon.type = 'image/x-icon';
+  inlineFavicon.href = createDataUrl(faviconBase64, 'image/x-icon');
+  document.head.appendChild(inlineFavicon);
+
   // Funciu00f3n para instalar todos los favicons necesarios
   function installFavicons() {
     // Remover cualquier favicon existente

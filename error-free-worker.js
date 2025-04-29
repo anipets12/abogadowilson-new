@@ -399,20 +399,53 @@ async function handleRequest(request, options = {}) {
     const url = new URL(request.url);
     const { kv, db, ctx } = options;
     
-    // Headers estándar para todas las respuestas
+    // Configuración estándar de headers para CORS
     const standardHeaders = {
       'Access-Control-Allow-Origin': ENV.CORS_ORIGIN,
       'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-      'Cache-Control': 'public, max-age=3600',
+      'Cache-Control': 'public, max-age=3600',  // 1 hora de cache para recursos estáticos
       'X-Content-Type-Options': 'nosniff',
       'X-Frame-Options': 'DENY',
       'Referrer-Policy': 'strict-origin-when-cross-origin',
       'Strict-Transport-Security': 'max-age=31536000; includeSubDomains; preload',
       'Permissions-Policy': 'geolocation=(), microphone=(), camera=()',
     };
-  
-  // Manejar solicitudes CORS OPTIONS
+    
+    // Lista de recursos críticos para optimizar carga
+    const CRITICAL_RESOURCES = [
+      '/favicon.ico',
+      '/favicon.svg',
+      '/manifest.json',
+      '/robots.txt',
+      '/apple-touch-icon.png',
+      '/fallback/react.production.min.js',
+      '/fallback/react-dom.production.min.js'
+    ];
+    
+    // Manejar solicitudes CORS OPTIONS
+    if (request.method === 'OPTIONS') {
+      return new Response(null, {
+        status: 204,
+        headers: standardHeaders
+      });
+    }
+    
+    // Manejar recursos críticos con alta prioridad (especialmente favicon)
+    if (CRITICAL_RESOURCES.includes(url.pathname)) {
+      return fetch(new Request(new URL(url.pathname, url.origin), request))
+        .catch(error => {
+          console.error(`Error al cargar recurso crítico ${url.pathname}:`, error);
+          // Devolver recurso de respaldo si disponible
+          return handleCriticalResource(url.pathname, standardHeaders);
+        });
+    }
+    
+    // Rutas API para servicios integrados
+    if (url.pathname.startsWith('/api/')) {
+      // Manejar solicitudes API con bindings
+      return handleApiRequest(request, url, standardHeaders, { kv, db });
+    }
   if (request.method === 'OPTIONS') {
     return new Response(null, {
       status: 204,
@@ -585,74 +618,200 @@ async function handleRequest(request, options = {}) {
           });
           return newResponse;
         }
-      } catch (e) {
-        console.error('Error al cargar index.html para SPA:', e, url.pathname);
-      }
-    }
     
-    // Fallback HTML si todo lo anterior falla
-    return new Response(
-      `<!DOCTYPE html>
-      <html lang="es">
-      <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Abogado Wilson</title>
-        <style>
-          body { font-family: system-ui, sans-serif; text-align: center; padding: 40px 20px; }
-          h1 { color: #2563eb; }
-          p { margin: 15px 0; max-width: 600px; margin: 0 auto 20px; }
-          button { background: #2563eb; color: white; border: none; padding: 12px 24px; cursor: pointer; border-radius: 4px; font-size: 16px; }
-        </style>
-      </head>
-      <body>
-        <h1>Sitio en mantenimiento</h1>
-        <p>Estamos realizando mejoras en nuestro sitio. Por favor, inténtelo de nuevo en unos minutos.</p>
-        <button onclick="window.location.reload()">Refrescar página</button>
-      </body>
-      </html>
-    `, {
+  // Función helper para renderizar página de mantenimiento
+  function renderMaintenancePage(headers) {
+    // Contenido HTML en formato de string simple para evitar problemas de sintaxis
+    let html = '';
+    html += '<!DOCTYPE html>';
+    html += '<html lang="es">';
+    html += '<head>';
+    html += '  <meta charset="UTF-8">';
+    html += '  <meta name="viewport" content="width=device-width, initial-scale=1.0">';
+    html += '  <title>Abogado Wilson - Mantenimiento</title>';
+    html += '  <link rel="icon" href="favicon.ico">';
+    html += '  <style>';
+    html += '    body { font-family: system-ui, sans-serif; text-align: center; padding: 40px 20px; }';
+    html += '    h1 { color: #2563eb; }';
+    html += '    p { margin: 15px 0; max-width: 600px; margin: 0 auto 20px; }';
+    html += '    button { background: #2563eb; color: white; border: none; padding: 12px 24px; cursor: pointer; border-radius: 4px; font-size: 16px; }';
+    html += '  </style>';
+    html += '</head>';
+    html += '<body>';
+    html += '  <h1>Sitio en mantenimiento</h1>';
+    html += '  <p>Estamos realizando mejoras en nuestro sitio. Por favor, inténtelo de nuevo en unos minutos.</p>';
+    html += '  <button onclick="window.location.reload()">Refrescar página</button>';
+    html += '</body>';
+    html += '</html>';
+    
+    // Crear respuesta con headers apropiados
+    return new Response(html, {
       status: 200,
       headers: {
         'Content-Type': 'text/html',
-        ...standardHeaders
+        ...headers
       }
     });
-  } catch (error) {
-    console.error('Error crítico en worker:', error);
+  }
+  
+  /**
+   * Maneja recursos críticos con respaldos integrados
+   * @param {string} pathname - Ruta del recurso
+   * @param {Object} headers - Headers estándar
+   * @returns {Response} - Respuesta con el recurso o su respaldo
+   */
+  function handleCriticalResource(pathname, headers) {
+    // Respaldos base64 para recursos críticos
+    const RESOURCE_BACKUPS = {
+      '/favicon.ico': 'AAABAAEAEBAAAAEAIABoBAAAFgAAACgAAAAQAAAAIAAAAAEAIAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAEC7u7uB+7u7gfu7u4H7u7uB+7u7gfu7u4H7u7uB+7u7gfu7u4H7u7uB+7u7gfu7u4H7u7uB+7u7gfu7u4H7u7uB+7u7lLu7u5N7u7uTe7u7k3u7u5N7u7uTe7u7k3u7u5N7u7uTe7u7k3u7u5N7u7uTe7u7k3u7u5N7u7uTe7u7k3u7u7T7u7u0O7u7tDu7u7Q7u7u0O7u7tDu7u7Q7u7u0O7u7tDu7u7Q7u7u0O7u7tDu7u7Q7u7u0O7u7tDu7u7Q7u7u/+7u7v/u7u7/7u7u/+7u7v/u7u7/7u7u/+7u7v/u7u7/7u7u/+7u7v/u7u7/7u7u/+7u7v/u7u7/7u7u/+7u7v/u7u7/7u7u/+7u7v/u7u7/7u7u/+7u7v/u7u7/7u7u/+7u7v/u7u7/7u7u/+7u7v/u7u7/7u7u/+7u7v/u7u7/7u7u/+7u7v/u7u7/7u7u/+7u7v/u7u7/7u7u/+7u7v/u7u7/7u7u/+7u7v/u7u7/7u7u/+7u7v/u7u7/7u7u/+7u7v/u7u7/7u7u/+7u7v/u7u7/7u7u0e7u7s/u7u7P7u7uz+7u7s/u7u7P7u7uz+7u7s/u7u7P7u7uz+7u7s/u7u7P7u7uz+7u7s/u7u7P7u7u0e7u7k/u7u5M7u7uTO7u7kzu7u5M7u7uTO7u7kzu7u5M7u7uTO7u7kzu7u5M7u7uTO7u7kzu7u5M7u7uTO7u7k/u7u4G7u7uBu7u7gbu7u4G7u7uBu7u7gbu7u4G7u7uBu7u7gbu7u4G7u7uBu7u7gbu7u4G7u7uBu7u7gbu7u4GAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAA=',
+      '/manifest.json': '{"name":"Abogado Wilson","short_name":"AbgWilson","icons":[{"src":"/icons/android-chrome-192x192.png","sizes":"192x192","type":"image/png","purpose":"any maskable"},{"src":"/icons/android-chrome-512x512.png","sizes":"512x512","type":"image/png","purpose":"any maskable"}],"theme_color":"#1e40af","background_color":"#ffffff","display":"standalone","start_url":"/","orientation":"portrait"}',
+      '/robots.txt': 'User-agent: *\nAllow: /\nSitemap: https://abogado-wilson.anipets12.workers.dev/sitemap.xml'
+    };
     
-    // Respuesta de emergencia si hay un error crítico
-    return new Response('Error interno del servidor', {
-      status: 500,
+    // Tipos MIME para diferentes recursos
+    const MIME_TYPES = {
+      '.ico': 'image/x-icon',
+      '.json': 'application/json',
+      '.txt': 'text/plain',
+      '.js': 'application/javascript',
+      '.css': 'text/css',
+      '.png': 'image/png',
+      '.svg': 'image/svg+xml'
+    };
+    
+    // Obtener extensión del archivo
+    const extension = pathname.match(/(\.[^.]+)$/)?.[1] || '';
+    const mimeType = MIME_TYPES[extension] || 'application/octet-stream';
+    
+    // Si tenemos respaldo para este recurso, devolverlo
+    if (RESOURCE_BACKUPS[pathname]) {
+      let content = RESOURCE_BACKUPS[pathname];
+      
+      // Convertir base64 a array buffer para imágenes
+      if (mimeType.startsWith('image/') && !pathname.endsWith('.svg')) {
+        // Decode base64
+        const binary = atob(content);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) {
+          bytes[i] = binary.charCodeAt(i);
+        }
+        content = bytes.buffer;
+      }
+      
+      return new Response(content, {
+        status: 200,
+        headers: {
+          'Content-Type': mimeType,
+          'Cache-Control': 'public, max-age=86400',
+          ...headers
+        }
+      });
+    }
+    
+    // Respaldo genérico si no hay respaldo específico
+    return new Response('Recurso no disponible', {
+      status: 404,
       headers: {
         'Content-Type': 'text/plain',
-        ...standardHeaders
+        ...headers
       }
     });
+  }
+  
+  // Función principal que maneja las solicitudes
+  async function handleRequest(request, options = {}) {
+    // Configuración estándar de headers para CORS
+    const standardHeaders = {
+      'Access-Control-Allow-Origin': ENV.CORS_ORIGIN,
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      'Cache-Control': 'public, max-age=3600',
+      'X-Content-Type-Options': 'nosniff',
+      'X-Frame-Options': 'DENY',
+      'Referrer-Policy': 'strict-origin-when-cross-origin',
+      'Strict-Transport-Security': 'max-age=31536000; includeSubDomains; preload',
+      'Permissions-Policy': 'geolocation=(), microphone=(), camera=()'
+    };
+    
+    const url = new URL(request.url);
+    const { kv, db } = options;
+    
+    try {
+      // Manejar solicitudes CORS OPTIONS
+      if (request.method === 'OPTIONS') {
+        return new Response(null, {
+          status: 204,
+          headers: standardHeaders
+        });
+      }
+      
+      // Rutas API para servicios integrados
+      if (url.pathname.startsWith('/api/')) {
+        // Manejar solicitudes API con bindings
+        return handleApiRequest(request, url, standardHeaders, { kv, db });
+      }
+      
+      // Si la ruta es para un recurso estático (no mapeado por _routes.json)
+      // Intentar servir desde el sistema de archivos estáticos
+      return fetch(request);
+    } catch (error) {
+      console.error('Error crítico en worker:', error);
+      
+      // Respuesta de emergencia si hay un error crítico
+      return new Response('Error interno del servidor', {
+        status: 500,
+        headers: {
+          'Content-Type': 'text/plain',
+          ...standardHeaders
+        }
+      });
+    }
   }
 }
 
 export default {
   // Asegurar disponibilidad de bindings KV y D1
   async fetch(request, env, ctx) {
+    const standardHeaders = {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      'Cache-Control': 'public, max-age=3600'
+    };
+    
     // Cargar variables desde environment
     Object.assign(ENV, {
-      SUPABASE_URL: env.SUPABASE_URL,
-      SUPABASE_KEY: env.SUPABASE_KEY,
-      ENVIRONMENT: env.ENVIRONMENT,
+      SUPABASE_URL: env.SUPABASE_URL || '',
+      SUPABASE_KEY: env.SUPABASE_KEY || '',
+      ENVIRONMENT: env.ENVIRONMENT || 'production',
       API_ENABLED: env.API_ENABLED === 'true',
-      CORS_ORIGIN: env.CORS_ORIGIN,
-      WHATSAPP_NUMBER: env.WHATSAPP_NUMBER,
-      N8N_WEBHOOK_URL: env.N8N_WEBHOOK_URL,
-      CONTACT_EMAIL: env.CONTACT_EMAIL
+      CORS_ORIGIN: env.CORS_ORIGIN || '*',
+      WHATSAPP_NUMBER: env.WHATSAPP_NUMBER || '',
+      N8N_WEBHOOK_URL: env.N8N_WEBHOOK_URL || '',
+      CONTACT_EMAIL: env.CONTACT_EMAIL || ''
     });
     
     try {
+      // Desactivar modo mantenimiento - Sitio listo para producción
+      const MAINTENANCE_MODE = false; // Cambiar a true solo cuando sea necesario
+      
+      // Si el recurso solicitado es un favicon, servirlo directamente
+      const url = new URL(request.url);
+      if (url.pathname === '/favicon.ico') {
+        return fetch(new Request(new URL('/favicon.ico', url.origin), request))
+          .catch(() => handleCriticalResource('/favicon.ico', standardHeaders));
+      }
+
+      // Verificar si estamos en modo mantenimiento y no es una solicitud de API o recurso estático
+      if (MAINTENANCE_MODE && !url.pathname.startsWith('/api/') && !url.pathname.match(/\.(js|css|ico|png|jpg|svg|woff|woff2|ttf|json)$/)) {
+        return renderMaintenancePage(standardHeaders);
+      }
+      
       // Pasar servicios como opciones
       return await handleRequest(request, {
         kv: env.ABOGADO_WILSON_KV,
         db: env.ABOGADO_WILSON_DB,
-        ctx: ctx
+        ctx
       });
     } catch (error) {
       console.error('Error crítico en handler:', error);

@@ -77,17 +77,31 @@
           return;
         }
         
-        // Comprobar si necesitamos corregir el puerto (solo para localhost)
+        // Comprobar si estamos en modo producción para desactivar WebSockets
+        const isProduction = !window.location.hostname.includes('localhost') && !window.location.hostname.includes('127.0.0.1');
+        
+        // En producción (Cloudflare Workers), desactivamos por completo los WebSockets
+        if (isProduction) {
+          // Simular un WebSocket que nunca se conecta pero tampoco dispara errores
+          console.log(`[ViteFix] Desactivando WebSocket en producción: ${url}`);
+          super('ws://localhost:1234'); // Una URL inválida pero que no genera errores CORS
+          // Cierre inmediato para evitar intentos de conexión
+          setTimeout(() => {
+            try { this.close(); } catch(e) {}
+          }, 100);
+          return;
+        }
+        
+        // Solo para desarrollo local: corregir el puerto si es necesario
         let finalUrl = url;
-        if (wsUrl.hostname === 'localhost' || wsUrl.hostname === '127.0.0.1') {
-          const currentPort = vitePort;
-          const wsPort = wsUrl.port;
-          
-          // Si los puertos son diferentes, corregir la URL
-          if (wsPort && wsPort !== currentPort && wsPort === '5174') {
-            finalUrl = url.replace(`localhost:${wsPort}`, `localhost:${currentPort}`);
-            console.log(`[ViteFix] Corrigiendo WebSocket: ${url} → ${finalUrl}`);
-          }
+        const currentPort = window.location.port || vitePort;
+        const wsPort = wsUrl.port;
+        
+        // Si los puertos son diferentes, corregir la URL
+        if (wsPort && wsPort !== currentPort) {
+          finalUrl = url.replace(`localhost:${wsPort}`, `localhost:${currentPort}`);
+          finalUrl = finalUrl.replace(`127.0.0.1:${wsPort}`, `127.0.0.1:${currentPort}`);
+          console.log(`[ViteFix] Corrigiendo WebSocket: ${url} → ${finalUrl}`);
         }
         
         // Crear el WebSocket con la URL posiblemente corregida
@@ -196,39 +210,18 @@
     let reconnectTimer = null;
     const MAX_RECONNECTS = 1; // Reducir el máximo de reconexiones para evitar bucles
     let reconnectCount = 0;
-    let wsConnected = false;
-    
-    function connect() {
       try {
-        // Cerrar cualquier conexión existente
-        if (wsInstance) {
-          try {
-            wsInstance.close();
-          } catch (e) {
-            // Ignorar errores al cerrar
+        console.log(`[ViteFix] Intentando conexión WebSocket a ${wsUrl}...`);
+        
+        // Crear objeto WebSocket con timeout
+        const connectTimeout = setTimeout(() => {
+          console.log('[ViteFix] Timeout en conexión WebSocket');
+          if (window.__VITE_WEBSOCKET_STATE__.socket) {
+            window.__VITE_WEBSOCKET_STATE__.socket.close();
           }
-        }
+        }, 3000);
         
-        // URL base del servidor actual
-        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const host = window.location.hostname + (window.location.port ? ':' + window.location.port : '');
-        const wsUrl = `${protocol}//${host}?vite&token=${generateToken()}`;
-        
-        console.log(`[ViteFix] Conectando WebSocket a ${wsUrl}...`);
-        
-        wsInstance = new WebSocket(wsUrl);
-        
-        // Establecer un timeout para detectar si la conexión está tomando demasiado tiempo
-        const connectionTimeout = setTimeout(() => {
-          if (!wsConnected) {
-            console.warn('[ViteFix] Tiempo de espera para conexión WebSocket agotado');
-            wsInstance.close();
-            // Marcar como inutilizable para esta sesión
-            localStorage.setItem('DISABLE_VITE_WS', 'true');
-          }
-        }, 5000);
-        
-        wsInstance.onopen = function() {
+        window.__VITE_WEBSOCKET_STATE__.socket = new WebSocket(wsUrl);
           console.log('[ViteFix] WebSocket conectado exitosamente a ' + wsUrl);
           wsConnected = true;
           clearTimeout(connectionTimeout);
