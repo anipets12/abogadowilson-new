@@ -35,9 +35,10 @@
     },
     {
       name: 'HeadlessUI',
-      // Usar unpkg que sirve con MIME correcto. El .umd.js se entrega como application/javascript
-      url: 'https://unpkg.com/@headlessui/react@2.2.2/dist/headlessui.umd.js',
-      globalVar: 'Headless'
+      // Aún tenemos problemas de MIME, será cargado directamente del fallback local
+      url: '', // URL vacía para forzar fallback inmediato
+      globalVar: 'Headless',
+      useLocalFallback: true
     },
     {
       name: 'HeroIcons',
@@ -102,51 +103,66 @@
         resolve(true);
         return;
       }
+      
+      // Si está configurado para usar fallback local directamente
+      if (library.useLocalFallback) {
+        loadLocalFallback(library, resolve);
+        return;
+      }
 
-      // Crear elemento script
-      const script = document.createElement('script');
-      script.src = library.url;
-      script.async = false; // Importante: cargar en orden
-      script.crossOrigin = 'anonymous';
+      // Crear elemento script para CDN si hay URL
+      if (library.url) {
+        const script = document.createElement('script');
+        script.src = library.url;
+        script.async = false; // Importante: cargar en orden
+        script.crossOrigin = 'anonymous';
 
-      // Eventos de carga
-      script.onload = () => {
-        console.log(`[DirectLoad] ${library.name} cargado correctamente`);
-        window.__DIRECT_LOAD__.loaded[library.name] = true;
-        window.__DIRECT_LOAD__.loadCount++;
-        resolve(true);
-      };
-
-      script.onerror = (error) => {
-        console.warn(`[DirectLoad] Error al cargar ${library.name} desde CDN, intentando fallback local`);
-        // Intentar fallback local si existe en /fallback/
-        const fallbackScript = document.createElement('script');
-        fallbackScript.src = `/fallback/${library.name.toLowerCase()}.js`;
-        fallbackScript.async = false;
-        fallbackScript.crossOrigin = 'anonymous';
-
-        fallbackScript.onload = () => {
-          console.log(`[DirectLoad] ${library.name} cargado correctamente desde fallback local`);
+        // Eventos de carga
+        script.onload = () => {
+          console.log(`[DirectLoad] ${library.name} cargado correctamente`);
           window.__DIRECT_LOAD__.loaded[library.name] = true;
           window.__DIRECT_LOAD__.loadCount++;
           resolve(true);
         };
 
-        fallbackScript.onerror = (error2) => {
-          console.error(`[DirectLoad] Fallback local para ${library.name} también falló:`, error2);
-          window.__DIRECT_LOAD__.errors.push({
-            library: library.name,
-            error: error2,
-            time: new Date().toISOString()
-          });
-          resolve(false);
-        };
-
-        document.head.appendChild(fallbackScript);
+      script.onerror = (error) => {
+        console.warn(`[DirectLoad] Error al cargar ${library.name} desde CDN, intentando fallback local`);
+        loadLocalFallback(library, resolve);
       };
-
+      
       // Añadir al documento
       document.head.appendChild(script);
+      return; // Importante para evitar doble resolución
+    });
+  }
+  
+  // Función auxiliar para cargar fallback local
+  function loadLocalFallback(library, resolve) {
+    // Intentar fallback local
+    const fallbackScript = document.createElement('script');
+    fallbackScript.src = `/fallback/${library.name.toLowerCase()}.js`;
+    fallbackScript.async = false;
+    fallbackScript.crossOrigin = 'anonymous';
+
+    fallbackScript.onload = () => {
+      console.log(`[DirectLoad] ${library.name} cargado correctamente desde fallback local`);
+      window.__DIRECT_LOAD__.loaded[library.name] = true;
+      window.__DIRECT_LOAD__.loadCount++;
+      resolve(true);
+    };
+
+    fallbackScript.onerror = (error2) => {
+      console.error(`[DirectLoad] Fallback local para ${library.name} también falló:`, error2);
+      window.__DIRECT_LOAD__.errors.push({
+        library: library.name,
+        error: error2,
+        time: new Date().toISOString()
+      });
+      resolve(false);
+    };
+
+    // Añadir al documento
+    document.head.appendChild(fallbackScript);
     });
   }
 

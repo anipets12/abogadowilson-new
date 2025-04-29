@@ -104,12 +104,23 @@ async function loadCriticalModules() {
 // Función para inicializar la conexión WebSocket con reintentos
 async function initializeWebSocket(wsHandler) {
   try {
-    console.log('[Main] Inicializando conexión WebSocket...');
+    // Determinar si estamos en desarrollo o producción
+    const isDev = import.meta.env.DEV;
+    const wsUrl = isDev 
+      ? 'ws://localhost:' + (import.meta.env.VITE_WS_PORT || '8787') + '/ws'
+      : 'wss://' + window.location.host + '/ws';
+      
+    console.log(`[Main] Inicializando conexión WebSocket a: ${wsUrl}`);
+    
     if (wsHandler && typeof wsHandler.connect === 'function') {
-      await wsHandler.connect();
-      console.log('[Main] Conexión WebSocket establecida');
+      // Pasar callbacks para gestionar eventos
+      await wsHandler.connect(wsUrl, {
+        onOpen: () => console.log('[Main] Conexión WebSocket establecida'),
+        onError: (err) => console.warn('[Main] Error en WebSocket:', err),
+        onClose: () => console.log('[Main] Conexión WebSocket cerrada')
+      });
     } else {
-      console.warn('[Main] Manejador WebSocket no válido');
+      console.warn('[Main] Manejador WebSocket no válido, continuando sin WebSocket');
     }
   } catch (error) {
     console.warn('[Main] No se pudo establecer conexión WebSocket, continuando sin ella:', error);
