@@ -17,6 +17,9 @@
   
   script.onerror = function(error) {
     console.error('[Fallback] Error en redirección para @headlessui/react:', error);
+    // Intento alternativo de carga inmediata en caso de error
+    window.HeadlessUI = window.HeadlessUI || {};
+    console.log('[Fallback] Creando objeto HeadlessUI de emergencia');
   };
   
   document.head.appendChild(script);

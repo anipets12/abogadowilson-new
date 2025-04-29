@@ -26,9 +26,9 @@
 
   // Lista de URLs seguras y absolutas para módulos críticos con tipos MIME correctos
   const SAFE_MODULE_URLS = {
-    // Evitamos unpkg en lo posible debido a problemas de CORS
-    'axios': 'https://cdnjs.cloudflare.com/ajax/libs/axios/1.6.2/axios.min.js', // CDNJS tiene mejores headers
-    'framer-motion': 'https://cdnjs.cloudflare.com/ajax/libs/framer-motion/10.16.4/framer-motion.min.js',
+    // Evitamos CDNs externos en lo posible debido a problemas de CORS
+    'axios': '/fallback/axios.min.js', // Usamos local para evitar CORS
+    'framer-motion': '/fallback/framer-motion.js', // Siempre local para evitar MIME type errors
     '@headlessui/react': '/fallback/headlessui.js', // Usamos siempre el local para evitar CORS
     '@heroicons/react': '/fallback/heroicons-react.js', // Usamos siempre el local para evitar CORS
     'react-icons': '/fallback/react-icons.js',

@@ -278,7 +278,7 @@
   function fixReactRouterDOM() {
     // Asegurarse de que el objeto global exista
     if (!window.ReactRouterDOM) {
-      loadSyncScript('/fallback/react-router-dom.js');
+      loadScriptSync('/fallback/react-router-dom.js');
     }
     
     // Interceptar unpkg de React Router DOM

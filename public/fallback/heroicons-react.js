@@ -130,11 +130,16 @@
     return 'M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z';
   }
   
+  // Crear una función para generar iconos a partir de paths SVG
+  function createIcon(name, svgPath) {
+    return createIconComponent(name, 'outline');
+  }
+
   // Generar iconos para outline y solid
   commonIcons.forEach(name => {
     const path = getIconPath(name);
-    outline[name] = createIcon(name, path);
-    solid[name] = createIcon(name, path);
+    outline[name] = createIconComponent(name, 'outline');
+    solid[name] = createIconComponent(name, 'solid');
   });
   
   // Notificar que el módulo ha sido cargado

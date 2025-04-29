@@ -1,6 +1,12 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
+  <!-- Sistema de respaldo global - Absolutamente prioritario -->
+  <script src="/fallback.js"></script>
+  
+  <!-- Correcciu00f3n de errores DOM - Antes que cualquier manipulaciu00f3n del DOM -->
+  <script src="/dom-error-fix.js"></script>
+  
   <!-- Sistema de gestión de favicon - Debe ir primero para capturar errores de recursos -->
   <script src="/favicon-handler.js"></script>
   

@@ -35,9 +35,17 @@
 
   // Funciu00f3n para instalar todos los favicons necesarios
   function installFavicons() {
-    // Remover cualquier favicon existente
+    // Remover cualquier favicon existente con manejo seguro
     const existingFavicons = document.querySelectorAll('link[rel*="icon"]');
-    existingFavicons.forEach(link => link.parentNode.removeChild(link));
+    existingFavicons.forEach(link => {
+      try {
+        if (link && link.parentNode) {
+          link.parentNode.removeChild(link);
+        }
+      } catch (e) {
+        console.warn('[FaviconHandler] Error al eliminar favicon antiguo:', e);
+      }
+    });
     
     // Crear los nuevos favicons con respaldo
     const iconLinks = [
@@ -56,9 +64,10 @@
       if (iconConfig.type) link.type = iconConfig.type;
       link.href = iconConfig.href;
       
-      // Manejar errores de carga
+      // Manejar errores de carga de forma robusta
       link.onerror = function() {
         console.warn(`[FaviconHandler] Error al cargar favicon: ${iconConfig.href}, usando respaldo`);
+        // Establecer el respaldo inmediatamente
         this.href = iconConfig.fallback;
       };
       

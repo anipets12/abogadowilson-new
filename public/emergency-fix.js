@@ -335,6 +335,52 @@
     });
   }
   
+  // Función para aplicar estilos de emergencia
+  function ensureStyles() {
+    // Verificar si los estilos ya existen
+    if (document.getElementById('emergency-styles')) {
+      return;
+    }
+    
+    // Crear y aplicar estilos de emergencia
+    const style = document.createElement('style');
+    style.id = 'emergency-styles';
+    style.textContent = `
+      .emergency-container {
+        font-family: system-ui, -apple-system, sans-serif;
+        max-width: 800px;
+        margin: 2rem auto;
+        padding: 2rem;
+        background: #fff;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      }
+      .emergency-header {
+        color: #2563eb;
+        font-size: 1.75rem;
+        margin-bottom: 1rem;
+      }
+      .emergency-message {
+        background-color: #f9fafb;
+        border-left: 4px solid #2563eb;
+        padding: 1rem;
+        margin: 1rem 0;
+      }
+      .emergency-action {
+        margin-top: 1.5rem;
+      }
+      .emergency-button {
+        background-color: #2563eb;
+        color: white;
+        padding: 0.5rem 1rem;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+      }
+    `;
+    document.head.appendChild(style);
+  }
+  
   // Función para inicializar el sistema de emergencia
   function initializeEmergencySystem() {
     console.log('[EmergencyFix] Inicializando sistema de emergencia...');
