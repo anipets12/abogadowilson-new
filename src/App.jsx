@@ -182,15 +182,14 @@ function App() {
 
 // Componente AppContent separado para usar el contexto de autenticación
 function AppContent() {
-  const { user, loading, isAuthenticated } = useAuth();
+  // Protección contra errores en el contexto de autenticación
+  const authContext = useAuth() || {};
+  const { user, isAuthenticated = false, loading = false } = authContext;
+  const location = useLocation();
   
-  // Mostrar un indicador de carga mientras se verifica la autenticación
+  // Mostrar un spinner mientras se determina si el usuario está autenticado
   if (loading) {
-    return (
-      <div className="flex h-screen w-full items-center justify-center">
-        <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-blue-500"></div>
-      </div>
-    );
+    return <LoadingIndicator />;
   }
 
   return (

@@ -35,7 +35,8 @@
     },
     {
       name: 'HeadlessUI',
-      url: 'https://cdn.jsdelivr.net/npm/@headlessui/react@2.2.2/dist/headlessui.umd.min.js',
+      // Usar unpkg que sirve con MIME correcto. El .umd.js se entrega como application/javascript
+      url: 'https://unpkg.com/@headlessui/react@2.2.2/dist/headlessui.umd.js',
       globalVar: 'Headless'
     },
     {
@@ -117,14 +118,31 @@
       };
 
       script.onerror = (error) => {
-        console.error(`[DirectLoad] Error al cargar ${library.name}:`, error);
-        window.__DIRECT_LOAD__.errors.push({
-          library: library.name,
-          error: error,
-          time: new Date().toISOString()
-        });
-        // Resolvemos de todos modos para no bloquear otras cargas
-        resolve(false);
+        console.warn(`[DirectLoad] Error al cargar ${library.name} desde CDN, intentando fallback local`);
+        // Intentar fallback local si existe en /fallback/
+        const fallbackScript = document.createElement('script');
+        fallbackScript.src = `/fallback/${library.name.toLowerCase()}.js`;
+        fallbackScript.async = false;
+        fallbackScript.crossOrigin = 'anonymous';
+
+        fallbackScript.onload = () => {
+          console.log(`[DirectLoad] ${library.name} cargado correctamente desde fallback local`);
+          window.__DIRECT_LOAD__.loaded[library.name] = true;
+          window.__DIRECT_LOAD__.loadCount++;
+          resolve(true);
+        };
+
+        fallbackScript.onerror = (error2) => {
+          console.error(`[DirectLoad] Fallback local para ${library.name} también falló:`, error2);
+          window.__DIRECT_LOAD__.errors.push({
+            library: library.name,
+            error: error2,
+            time: new Date().toISOString()
+          });
+          resolve(false);
+        };
+
+        document.head.appendChild(fallbackScript);
       };
 
       // Añadir al documento

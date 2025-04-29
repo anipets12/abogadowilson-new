@@ -7,8 +7,9 @@ export default defineConfig({
   plugins: [react()],
   base: './',
   server: {
-    port: 5174,
-    strictPort: true,
+    // Usar 5173 por defecto pero permitir cambiar automáticamente si está ocupado
+    port: parseInt(process.env.PORT || '5173', 10),
+    strictPort: false, // Permite a Vite usar el siguiente puerto disponible
     cors: true,
     fs: {
       allow: ['..', '/']
@@ -16,8 +17,7 @@ export default defineConfig({
     hmr: {
       protocol: 'ws',
       host: 'localhost',
-      port: 5174,
-      clientPort: 5174,
+      // No fijamos el puerto HMR: Vite usará automáticamente el puerto del servidor
       timeout: 5000,
       overlay: false
     },
